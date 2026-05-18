@@ -110,10 +110,12 @@ function FacebookPageCard({
 function TriggerConfig({
   accountId,
   currentTriggers,
+  oauthSession,
   onSaved,
 }: {
   accountId: string;
   currentTriggers?: string[];
+  oauthSession?: string;
   onSaved: () => void;
 }) {
   const { message } = App.useApp();
@@ -122,10 +124,11 @@ function TriggerConfig({
 
   const saveMutation = useMutation({
     mutationFn: async () => {
-      console.log('REQUEST URL:', `${API_URL}/instagram/save-trigger`);
-      return api.post('/instagram/save-trigger', { accountId, triggers: selected });
+      console.log('API REQUEST:', `${API_URL}/instagram/save-trigger`);
+      return api.post('/instagram/save-trigger', { accountId, triggers: selected, oauthSession });
     },
     onSuccess: () => {
+      console.log('TRIGGER SAVED:', { accountId, triggers: selected });
       message.success('Automation triggers saved!');
       onSaved();
     },
@@ -357,7 +360,67 @@ function EmptyState({ onConnect }: { onConnect: () => void }) {
 }
 
 /* ═══════════════════════════════════════════════════════
-   Facebook Pages Selector (TASK 5 & 6)
+   SelectedInstagramAccount  (TASK 5)
+   Shown after user picks a page — displays IG info + triggers
+═══════════════════════════════════════════════════════ */
+interface SelectedAccount {
+  id: string;
+  username: string;
+  profilePicture?: string;
+  isSubscribed: boolean;
+  name: string;
+}
+
+function SelectedInstagramAccount({
+  account,
+  oauthSession,
+  onSaved,
+}: {
+  account: SelectedAccount;
+  oauthSession: string;
+  onSaved: () => void;
+}) {
+  return (
+    <div className="space-y-6">
+      {/* ── Instagram account info ── */}
+      <div className="rounded-2xl border border-emerald-100 bg-emerald-50 p-6">
+        <div className="flex items-center gap-4">
+          <div className="relative flex-shrink-0">
+            <Avatar
+              src={account.profilePicture || `https://ui-avatars.com/api/?name=${account.username}&background=e0e7ff&color=4f46e5&bold=true`}
+              size={72}
+              className="border-4 border-white shadow-md"
+            />
+            <span className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full border-2 border-white bg-emerald-500 flex items-center justify-center">
+              <CheckCircleFilled className="text-white text-xs" />
+            </span>
+          </div>
+          <div>
+            <div className="flex items-center gap-2 flex-wrap">
+              <Text strong className="text-xl text-gray-900">@{account.username}</Text>
+              <Tag color="success" icon={<CheckCircleFilled />} className="m-0">Connected</Tag>
+            </div>
+            <Text type="secondary" className="text-sm">{account.name}</Text>
+            <div className="mt-1 flex items-center gap-1">
+              <InstagramOutlined className="text-purple-500 text-xs" />
+              <Text className="text-xs text-purple-600">Instagram Business Account</Text>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* ── Trigger configuration ── (TASK 6) */}
+      <TriggerConfig
+        accountId={account.id}
+        oauthSession={oauthSession}
+        onSaved={onSaved}
+      />
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════
+   Facebook Pages Selector (TASKS 2, 3, 4, 5, 6, 7, 8)
    Shown when oauthSession is present in URL
 ═══════════════════════════════════════════════════════ */
 function FacebookPageSelector({
@@ -369,65 +432,125 @@ function FacebookPageSelector({
 }) {
   const { message } = App.useApp();
   const api = useApiClient();
+
+  // ── TASK 2 state ──────────────────────────────────
+  const [pages, setPages] = useState<FacebookPage[]>([]);
+  const [loadingPages, setLoadingPages] = useState(false);
+  const [pagesError, setPagesError] = useState<string | null>(null);
+
+  // ── TASK 4 state ──────────────────────────────────
   const [selectingPageId, setSelectingPageId] = useState<string | null>(null);
+  const [selectedAccount, setSelectedAccount] = useState<SelectedAccount | null>(null);
 
-  const { data, isLoading, error } = useQuery<AvailablePagesResponse>({
-    queryKey: ['available-pages', oauthSession],
-    queryFn: async () => {
+  // ── TASK 8 — log current URL and session on mount ──
+  useEffect(() => {
+    console.log('CURRENT URL:', window.location.href);
+    console.log('OAUTH SESSION:', oauthSession);
+  }, [oauthSession]);
+
+  // ── TASK 2 — auto-load pages when oauthSession is present ──
+  useEffect(() => {
+    if (!oauthSession) return;
+    loadPages();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [oauthSession]);
+
+  // ── TASK 2 — loadPages function ──────────────────
+  async function loadPages() {
+    setLoadingPages(true);
+    setPagesError(null);
+    try {
       const url = `/instagram/available-pages?oauthSession=${oauthSession}`;
-      console.log('REQUEST URL:', `${API_URL}${url}`);
-      return api.get(url);
-    },
-    enabled: !!oauthSession,
-    retry: 1,
-  });
+      console.log('API REQUEST:', `${API_URL}${url}`);
+      const response = await api.get<{ pages: FacebookPage[] }>(url);
+      console.log('API RESPONSE:', response);
+      console.log('PAGES:', response);
+      setPages((response as any)?.pages ?? (Array.isArray(response) ? response : []));
+    } catch (error: any) {
+      console.log('PAGE_LOAD_ERROR:', error);
+      const msg = error?.response?.data?.message || 'Could not load Facebook pages. The session may have expired.';
+      setPagesError(msg);
+    } finally {
+      setLoadingPages(false);
+    }
+  }
 
-  const selectMutation = useMutation({
-    mutationFn: async (page: FacebookPage) => {
-      setSelectingPageId(page.id);
-      console.log('REQUEST URL:', `${API_URL}/instagram/select-account`);
-      return api.post('/instagram/select-account', {
+  // ── TASK 4 — select account ───────────────────────
+  async function handleSelectPage(page: FacebookPage) {
+    setSelectingPageId(page.id);
+    console.log('SELECTED PAGE:', { id: page.id, name: page.name });
+    console.log('API REQUEST:', `${API_URL}/instagram/select-account`);
+    try {
+      const result = await api.post<SelectedAccount>('/instagram/select-account', {
         pageId: page.id,
         pageAccessToken: page.access_token,
         name: page.name,
         oauthSession,
       });
-    },
-    onSuccess: () => {
-      message.success('Instagram account connected!');
-      // Remove oauthSession from URL and reload accounts
+      console.log('API RESPONSE:', result);
+      // Backend returns the newly created Instagram account record
+      setSelectedAccount({
+        id: (result as any)?.id ?? page.id,
+        username: (result as any)?.username ?? page.name,
+        profilePicture: (result as any)?.profilePicture,
+        isSubscribed: (result as any)?.isSubscribed ?? false,
+        name: page.name,
+      });
+      message.success('Instagram page linked! Now configure your triggers.');
+      // Update URL cleanly — keep user on same page without oauthSession polluting the URL
       window.history.replaceState({}, '', '/integrations');
-      onSuccess();
-    },
-    onError: (err: any) => {
+    } catch (error: any) {
+      console.log('PAGE_LOAD_ERROR:', error);
+      message.error(error?.response?.data?.message || 'Failed to connect page. Please try again.');
       setSelectingPageId(null);
-      message.error(err?.response?.data?.message || 'Failed to connect page');
-    },
-  });
+    }
+  }
 
-  if (isLoading) {
+  // ── TASK 7 — Loading state ────────────────────────
+  if (loadingPages) {
     return (
-      <div className="rounded-2xl border border-indigo-100 bg-indigo-50 p-8 text-center space-y-4">
+      <div className="rounded-2xl border border-indigo-100 bg-indigo-50 p-10 text-center space-y-4">
         <Spin size="large" />
-        <Text type="secondary">Loading your Facebook pages…</Text>
+        <div>
+          <Text strong className="block text-gray-700">Loading your Facebook pages…</Text>
+          <Text type="secondary" className="text-sm">Fetching pages linked to your Meta account</Text>
+        </div>
       </div>
     );
   }
 
-  if (error) {
+  // ── TASK 7 — Error state ──────────────────────────
+  if (pagesError) {
     return (
-      <Alert
-        type="error"
-        showIcon
-        title="Could not load Facebook pages"
-        description={(error as any)?.response?.data?.message || 'The OAuth session may have expired. Please connect again.'}
-        className="rounded-2xl"
+      <div className="space-y-4">
+        <Alert
+          type="error"
+          showIcon
+          title="Could not load Facebook pages"
+          description={pagesError}
+          className="rounded-2xl"
+          action={
+            <Button size="small" onClick={loadPages}>
+              Retry
+            </Button>
+          }
+        />
+      </div>
+    );
+  }
+
+  // ── TASK 5 — Show Instagram account after page selection ──
+  if (selectedAccount) {
+    return (
+      <SelectedInstagramAccount
+        account={selectedAccount}
+        oauthSession={oauthSession}
+        onSaved={onSuccess}
       />
     );
   }
 
-  const pages = data?.pages ?? [];
-
+  // ── TASK 3 — Render Facebook pages list ──────────
   return (
     <div className="space-y-4">
       {/* Instagram gradient banner */}
@@ -438,27 +561,35 @@ function FacebookPageSelector({
           <FacebookOutlined className="text-blue-600" /> Select a Facebook Page
         </Title>
         <Text type="secondary" className="text-sm">
-          We found <strong>{pages.length}</strong> page{pages.length !== 1 ? 's' : ''} linked to your account.
-          Choose the one connected to your Instagram Business profile.
+          {pages.length > 0
+            ? <>We found <strong>{pages.length}</strong> page{pages.length !== 1 ? 's' : ''} linked to your account. Choose the one connected to your Instagram Business profile.</>
+            : 'No pages found. Retrying…'
+          }
         </Text>
       </div>
 
+      {/* TASK 7 — No pages empty state */}
       {pages.length === 0 ? (
-        <Alert
-          type="warning"
-          showIcon
-          title="No pages found"
-          description="Make sure your Instagram account is a Business Account linked to a Facebook Page, then reconnect."
-          className="rounded-2xl"
-        />
+        <div className="space-y-4">
+          <Alert
+            type="warning"
+            showIcon
+            title="No Facebook pages found"
+            description="Make sure your Instagram account is a Business Account linked to a Facebook Page, then reconnect."
+            className="rounded-2xl"
+          />
+          <Button block onClick={loadPages} icon={<ReloadOutlined />} className="rounded-xl">
+            Reload Pages
+          </Button>
+        </div>
       ) : (
         <div className="grid gap-3">
           {pages.map((page) => (
             <FacebookPageCard
               key={page.id}
               page={page}
-              onSelect={(p) => selectMutation.mutate(p)}
-              isLoading={selectMutation.isPending && selectingPageId === page.id}
+              onSelect={handleSelectPage}
+              isLoading={selectingPageId === page.id}
             />
           ))}
         </div>
