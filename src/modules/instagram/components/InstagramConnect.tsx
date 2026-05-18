@@ -360,69 +360,199 @@ function EmptyState({ onConnect }: { onConnect: () => void }) {
 }
 
 /* ═══════════════════════════════════════════════════════
-   SelectedInstagramAccount  (TASK 5)
-   Shown after user picks a page — displays IG info + triggers
-═══════════════════════════════════════════════════════ */
+   Onboarding Flow Sub-Components
+   (TASKS 1, 2, 3, 4, 5, 6, 7)
+   ═══════════════════════════════════════════════════════ */
+
 interface SelectedAccount {
-  id: string;
+  instagramBusinessId: string;
   username: string;
-  profilePicture?: string;
-  isSubscribed: boolean;
-  name: string;
+  profilePicture: string | null;
+  pageId: string;
 }
 
-function SelectedInstagramAccount({
-  account,
+// ── TASK 5: Automation Triggers Onboarding Panel ────
+function AutomationTriggersPanel({
+  instagramBusinessId,
   oauthSession,
-  onSaved,
+  onNext,
 }: {
-  account: SelectedAccount;
+  instagramBusinessId: string;
   oauthSession: string;
-  onSaved: () => void;
+  onNext: () => void;
 }) {
+  const { message } = App.useApp();
+  const api = useApiClient();
+  const [selected, setSelected] = useState<string[]>([]);
+  const [saving, setSaving] = useState(false);
+
+  const toggle = (key: string) =>
+    setSelected((prev) =>
+      prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key]
+    );
+
+  const handleSave = async () => {
+    if (selected.length === 0) {
+      message.warning('Please select at least one trigger to configure.');
+      return;
+    }
+    setSaving(true);
+    try {
+      // Loop over and save each selected trigger type
+      for (const triggerType of selected) {
+        const body = {
+          instagramBusinessId,
+          triggerType,
+          automationId: `auto_${triggerType}_${Date.now()}`,
+        };
+        console.log('API REQUEST:', `${API_URL}/instagram/save-trigger`, body);
+        const res = await api.post('/instagram/save-trigger', body);
+        console.log('TRIGGER SAVED:', res);
+      }
+      message.success('Automation triggers saved successfully!');
+      onNext();
+    } catch (err: any) {
+      message.error(err?.response?.data?.message || 'Failed to save automation triggers.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
-      {/* ── Instagram account info ── */}
-      <div className="rounded-2xl border border-emerald-100 bg-emerald-50 p-6">
-        <div className="flex items-center gap-4">
-          <div className="relative flex-shrink-0">
-            <Avatar
-              src={account.profilePicture || `https://ui-avatars.com/api/?name=${account.username}&background=e0e7ff&color=4f46e5&bold=true`}
-              size={72}
-              className="border-4 border-white shadow-md"
-            />
-            <span className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full border-2 border-white bg-emerald-500 flex items-center justify-center">
-              <CheckCircleFilled className="text-white text-xs" />
-            </span>
-          </div>
-          <div>
-            <div className="flex items-center gap-2 flex-wrap">
-              <Text strong className="text-xl text-gray-900">@{account.username}</Text>
-              <Tag color="success" icon={<CheckCircleFilled />} className="m-0">Connected</Tag>
-            </div>
-            <Text type="secondary" className="text-sm">{account.name}</Text>
-            <div className="mt-1 flex items-center gap-1">
-              <InstagramOutlined className="text-purple-500 text-xs" />
-              <Text className="text-xs text-purple-600">Instagram Business Account</Text>
-            </div>
-          </div>
-        </div>
+      <div>
+        <Title level={4} className="!mb-1 flex items-center gap-2">
+          <ThunderboltOutlined className="text-indigo-500" /> Configure Automation Triggers
+        </Title>
+        <Text type="secondary" className="text-sm">
+          Choose which Instagram events will trigger automated private replies.
+        </Text>
       </div>
 
-      {/* ── Trigger configuration ── (TASK 6) */}
-      <TriggerConfig
-        accountId={account.id}
-        oauthSession={oauthSession}
-        onSaved={onSaved}
-      />
+      <div className="grid grid-cols-2 gap-4">
+        {TRIGGER_OPTIONS.map(({ key, label, icon }) => (
+          <div
+            key={key}
+            onClick={() => toggle(key)}
+            className={`flex items-center gap-4 p-4 rounded-2xl border-2 cursor-pointer transition-all duration-200 shadow-sm
+              ${selected.includes(key)
+                ? 'border-indigo-500 bg-indigo-50/50'
+                : 'border-gray-100 bg-white hover:border-indigo-200'
+              }`}
+          >
+            <Checkbox checked={selected.includes(key)} />
+            <span className="text-2xl">{icon}</span>
+            <div>
+              <Text className="font-semibold text-sm block">{label}</Text>
+              <Text type="secondary" className="text-xs">Trigger on new {label.toLowerCase()}</Text>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <Button
+        type="primary"
+        size="large"
+        icon={<SaveOutlined />}
+        loading={saving}
+        disabled={selected.length === 0}
+        onClick={handleSave}
+        className="w-full h-12 rounded-xl font-medium shadow-md"
+        style={{ background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', border: 'none' }}
+      >
+        Save and Enable Automation
+      </Button>
     </div>
   );
 }
 
-/* ═══════════════════════════════════════════════════════
-   Facebook Pages Selector (TASKS 2, 3, 4, 5, 6, 7, 8)
-   Shown when oauthSession is present in URL
-═══════════════════════════════════════════════════════ */
+// ── TASK 6: Live Automation Status Check Card ────────
+function AutomationStatusCard({
+  accountId,
+  onFinished,
+}: {
+  accountId: string;
+  onFinished: () => void;
+}) {
+  const api = useApiClient();
+  const [status, setStatus] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function checkStatus() {
+      try {
+        console.log('API REQUEST:', `${API_URL}/instagram/automation-status/${accountId}`);
+        const res = await api.get<any>(`/instagram/automation-status/${accountId}`);
+        console.log('AUTOMATION STATUS:', res);
+        setStatus(res?.data || res);
+      } catch (err) {
+        console.error('Failed to load automation status:', err);
+      } finally {
+        setLoading(false);
+      }
+    }
+    checkStatus();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [accountId]);
+
+  if (loading) {
+    return (
+      <div className="p-8 text-center space-y-4">
+        <Spin size="large" />
+        <Text type="secondary" className="block text-sm">Verifying live server configuration status...</Text>
+      </div>
+    );
+  }
+
+  const checklist = [
+    { label: 'Instagram Connected', active: status?.connected },
+    { label: 'Webhook Active', active: status?.webhookSubscribed },
+    { label: 'Trigger Configured', active: status?.triggerConfigured },
+    { label: 'Automation Active', active: status?.automationActive },
+  ];
+
+  return (
+    <div className="space-y-6">
+      <div className="text-center space-y-2">
+        <div className="w-16 h-16 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto shadow-sm">
+          <CheckOutlined className="text-2xl" />
+        </div>
+        <Title level={4} className="!mb-0">Onboarding Completed Successfully!</Title>
+        <Text type="secondary" className="text-sm block">Your automated private reply channel is now live on Instagram.</Text>
+      </div>
+
+      <div className="rounded-2xl border border-gray-100 bg-gray-50/50 p-6 space-y-3">
+        {checklist.map((item, idx) => (
+          <div key={idx} className="flex items-center justify-between py-2 border-b border-gray-100 last:border-0">
+            <span className="text-gray-700 font-medium">{item.label}</span>
+            <div className="flex items-center gap-2">
+              <span className={`text-sm font-semibold ${item.active ? 'text-emerald-600' : 'text-gray-400'}`}>
+                {item.active ? '✓ Active' : '✕ Inactive'}
+              </span>
+              {item.active ? (
+                <CheckCircleFilled className="text-emerald-500" />
+              ) : (
+                <ExclamationCircleFilled className="text-gray-300" />
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <Button
+        type="primary"
+        size="large"
+        onClick={onFinished}
+        className="w-full h-12 rounded-xl font-medium shadow-md"
+        style={{ background: 'linear-gradient(135deg, #10b981, #059669)', border: 'none' }}
+      >
+        Finish and View Dashboard
+      </Button>
+    </div>
+  );
+}
+
+// ── TASK 8 — Complete Pages Selector Wizard ─────────
 function FacebookPageSelector({
   oauthSession,
   onSuccess,
@@ -433,39 +563,47 @@ function FacebookPageSelector({
   const { message } = App.useApp();
   const api = useApiClient();
 
-  // ── TASK 2 state ──────────────────────────────────
+  // Onboarding wizard steps: 'pages' | 'found' | 'connected' | 'triggers' | 'status'
+  const [step, setStep] = useState<'pages' | 'found' | 'connected' | 'triggers' | 'status'>('pages');
+
+  // Available pages data
   const [pages, setPages] = useState<FacebookPage[]>([]);
   const [loadingPages, setLoadingPages] = useState(false);
   const [pagesError, setPagesError] = useState<string | null>(null);
 
-  // ── TASK 4 state ──────────────────────────────────
+  // Connection flow selections/responses
+  const [selectedPage, setSelectedPage] = useState<FacebookPage | null>(null);
   const [selectingPageId, setSelectingPageId] = useState<string | null>(null);
-  const [selectedAccount, setSelectedAccount] = useState<SelectedAccount | null>(null);
+  const [instagramAccount, setInstagramAccount] = useState<SelectedAccount | null>(null);
+  const [connecting, setConnecting] = useState(false);
+  const [webhookSubscribed, setWebhookSubscribed] = useState(false);
+  const [connectedAccountId, setConnectedAccountId] = useState<string>('');
 
-  // ── TASK 8 — log current URL and session on mount ──
+  // ── TASK 7 — Log current URL and session on mount ──
   useEffect(() => {
     console.log('CURRENT URL:', window.location.href);
     console.log('OAUTH SESSION:', oauthSession);
   }, [oauthSession]);
 
-  // ── TASK 2 — auto-load pages when oauthSession is present ──
+  // ── TASK 1 — Auto-load pages on mount ──
   useEffect(() => {
     if (!oauthSession) return;
     loadPages();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [oauthSession]);
 
-  // ── TASK 2 — loadPages function ──────────────────
   async function loadPages() {
     setLoadingPages(true);
     setPagesError(null);
     try {
       const url = `/instagram/available-pages?oauthSession=${oauthSession}`;
       console.log('API REQUEST:', `${API_URL}${url}`);
-      const response = await api.get<{ pages: FacebookPage[] }>(url);
+      const response = await api.get<any>(url);
       console.log('API RESPONSE:', response);
-      console.log('PAGES:', response);
-      setPages((response as any)?.pages ?? (Array.isArray(response) ? response : []));
+      
+      const pagesList = response?.pages || (Array.isArray(response) ? response : []);
+      console.log('PAGES:', pagesList);
+      setPages(pagesList);
     } catch (error: any) {
       console.log('PAGE_LOAD_ERROR:', error);
       const msg = error?.response?.data?.message || 'Could not load Facebook pages. The session may have expired.';
@@ -475,51 +613,70 @@ function FacebookPageSelector({
     }
   }
 
-  // ── TASK 4 — select account ───────────────────────
-  async function handleSelectPage(page: FacebookPage) {
+  // ── TASK 2 — Select page and retrieve IG Business details ──
+  const handleSelectPage = async (page: FacebookPage) => {
     setSelectingPageId(page.id);
+    setSelectedPage(page);
     console.log('SELECTED PAGE:', { id: page.id, name: page.name });
     console.log('API REQUEST:', `${API_URL}/instagram/select-account`);
     try {
-      const result = await api.post<SelectedAccount>('/instagram/select-account', {
+      const result = await api.post<any>('/instagram/select-account', {
         pageId: page.id,
         pageAccessToken: page.access_token,
-        name: page.name,
-        oauthSession,
       });
-      console.log('API RESPONSE:', result);
-      // Backend returns the newly created Instagram account record
-      setSelectedAccount({
-        id: (result as any)?.id ?? page.id,
-        username: (result as any)?.username ?? page.name,
-        profilePicture: (result as any)?.profilePicture,
-        isSubscribed: (result as any)?.isSubscribed ?? false,
-        name: page.name,
-      });
-      message.success('Instagram page linked! Now configure your triggers.');
-      // Update URL cleanly — keep user on same page without oauthSession polluting the URL
-      window.history.replaceState({}, '', '/integrations');
+      console.log('INSTAGRAM RESPONSE:', result);
+
+      if (result?.instagram) {
+        setInstagramAccount(result.instagram);
+        setStep('found');
+      } else {
+        throw new Error('No Instagram account returned');
+      }
     } catch (error: any) {
       console.log('PAGE_LOAD_ERROR:', error);
-      message.error(error?.response?.data?.message || 'Failed to connect page. Please try again.');
+      message.error(error?.response?.data?.message || 'No linked Instagram Business Account found for this Facebook page.');
       setSelectingPageId(null);
     }
-  }
+  };
 
-  // ── TASK 7 — Loading state ────────────────────────
+  // ── TASK 3 — Connect account to DB and activate Webhook ──
+  const handleConnectAccount = async () => {
+    if (!selectedPage || !instagramAccount) return;
+    setConnecting(true);
+    console.log('API REQUEST:', `${API_URL}/instagram/connect-account`);
+    try {
+      const body = {
+        pageId: selectedPage.id,
+        pageAccessToken: selectedPage.access_token,
+        instagramBusinessId: instagramAccount.instagramBusinessId,
+        username: instagramAccount.username,
+      };
+      const result = await api.post<any>('/instagram/connect-account', body);
+      console.log('CONNECT ACCOUNT RESPONSE:', result);
+      console.log('WEBHOOK STATUS:', result?.webhookSubscribed ? 'Active' : 'Failed');
+
+      setWebhookSubscribed(!!result?.webhookSubscribed);
+      setStep('connected');
+    } catch (error: any) {
+      message.error(error?.response?.data?.message || 'Failed to connect Instagram account.');
+    } finally {
+      setConnecting(false);
+    }
+  };
+
+  // ── TASK 7 — Render steps ────────────────────────
   if (loadingPages) {
     return (
-      <div className="rounded-2xl border border-indigo-100 bg-indigo-50 p-10 text-center space-y-4">
+      <div className="p-12 text-center space-y-4 bg-gray-50/50 rounded-2xl border border-gray-100">
         <Spin size="large" />
         <div>
           <Text strong className="block text-gray-700">Loading your Facebook pages…</Text>
-          <Text type="secondary" className="text-sm">Fetching pages linked to your Meta account</Text>
+          <Text type="secondary" className="text-xs">Fetching profiles linked to your Meta account</Text>
         </div>
       </div>
     );
   }
 
-  // ── TASK 7 — Error state ──────────────────────────
   if (pagesError) {
     return (
       <div className="space-y-4">
@@ -529,84 +686,187 @@ function FacebookPageSelector({
           title="Could not load Facebook pages"
           description={pagesError}
           className="rounded-2xl"
-          action={
-            <Button size="small" onClick={loadPages}>
-              Retry
-            </Button>
-          }
         />
+        <Button block onClick={loadPages} className="rounded-xl h-11 font-medium">
+          Retry Loading Pages
+        </Button>
       </div>
     );
   }
 
-  // ── TASK 5 — Show Instagram account after page selection ──
-  if (selectedAccount) {
+  // STEP 1 — Available Pages List
+  if (step === 'pages') {
     return (
-      <SelectedInstagramAccount
-        account={selectedAccount}
+      <div className="space-y-6">
+        <div>
+          <Title level={4} className="!mb-1 flex items-center gap-2">
+            <FacebookOutlined className="text-blue-600" /> Available Facebook Pages
+          </Title>
+          <Text type="secondary" className="text-sm block">
+            We found <strong>{pages.length}</strong> page{pages.length !== 1 ? 's' : ''} linked to your Meta profile. Choose the one connected to your Instagram account.
+          </Text>
+        </div>
+
+        {pages.length === 0 ? (
+          <div className="space-y-4">
+            <Alert
+              type="warning"
+              showIcon
+              title="No Facebook pages detected"
+              description="Ensure your page is linked to a professional Instagram Business profile in Meta Business Suite."
+              className="rounded-2xl"
+            />
+            <Button block onClick={loadPages} icon={<ReloadOutlined />} className="rounded-xl h-11">
+              Reload Pages
+            </Button>
+          </div>
+        ) : (
+          <div className="grid gap-4">
+            {pages.map((page) => (
+              <FacebookPageCard
+                key={page.id}
+                page={page}
+                onSelect={handleSelectPage}
+                isLoading={selectingPageId === page.id}
+              />
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // STEP 2 — Instagram Account Found Preview
+  if (step === 'found' && instagramAccount) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <Title level={4} className="!mb-1 flex items-center gap-2 text-indigo-600">
+            <InstagramOutlined /> Instagram Account Found
+          </Title>
+          <Text type="secondary" className="text-sm">
+            Verify the linked Instagram Business account details before proceeding.
+          </Text>
+        </div>
+
+        <div className="rounded-2xl border border-indigo-100 bg-indigo-50/30 p-6 flex items-center gap-4">
+          <Avatar
+            src={instagramAccount.profilePicture || `https://ui-avatars.com/api/?name=${instagramAccount.username}&background=e0e7ff&color=4f46e5&bold=true`}
+            size={72}
+            className="border-4 border-white shadow-md flex-shrink-0"
+          />
+          <div>
+            <div className="flex items-center gap-2">
+              <Text strong className="text-lg text-gray-900">@{instagramAccount.username}</Text>
+              <Tag color="purple" className="m-0 font-medium">✓ Professional Status</Tag>
+            </div>
+            <Text type="secondary" className="text-xs block mt-0.5">IG ID: {instagramAccount.instagramBusinessId}</Text>
+            <Text className="text-xs text-emerald-600 font-semibold mt-1 block">✓ Ready to Connect</Text>
+          </div>
+        </div>
+
+        <Button
+          type="primary"
+          size="large"
+          loading={connecting}
+          onClick={handleConnectAccount}
+          className="w-full h-12 rounded-xl font-medium shadow-md"
+          style={{ background: 'linear-gradient(135deg, #833ab4, #fd1d1d)', border: 'none' }}
+        >
+          Connect Account
+        </Button>
+      </div>
+    );
+  }
+
+  // STEP 3 — Connected success state
+  if (step === 'connected') {
+    return (
+      <div className="space-y-6">
+        <div className="text-center space-y-2">
+          <div className="w-16 h-16 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto shadow-sm">
+            <CheckCircleFilled className="text-3xl" />
+          </div>
+          <Title level={4} className="!mb-0 text-emerald-600">Instagram Connected</Title>
+          <Text type="secondary" className="text-sm block">Successfully authorized and registered your account.</Text>
+        </div>
+
+        <div className="rounded-2xl border border-gray-100 bg-gray-50/50 p-6 space-y-4">
+          <div className="flex items-center justify-between">
+            <Text className="font-semibold text-gray-700">Connection Status</Text>
+            <Tag color="success" className="font-medium rounded-full px-3">✓ Complete</Tag>
+          </div>
+          <div className="flex items-center justify-between">
+            <Text className="font-semibold text-gray-700">Webhook Status</Text>
+            <Tag color={webhookSubscribed ? 'success' : 'warning'} className="font-medium rounded-full px-3">
+              {webhookSubscribed ? '✓ Active' : '✕ Inactive'}
+            </Tag>
+          </div>
+        </div>
+
+        <Button
+          type="primary"
+          size="large"
+          onClick={() => setStep('triggers')}
+          className="w-full h-12 rounded-xl font-medium shadow-md"
+          style={{ background: 'linear-gradient(135deg, #4f46e5, #4f46e5)', border: 'none' }}
+        >
+          Proceed to Triggers
+        </Button>
+      </div>
+    );
+  }
+
+  // STEP 4 — Trigger configuration panel
+  if (step === 'triggers' && instagramAccount) {
+    return (
+      <AutomationTriggersPanel
+        instagramBusinessId={instagramAccount.instagramBusinessId}
         oauthSession={oauthSession}
-        onSaved={onSuccess}
+        onNext={async () => {
+          // Find connected account DB ID to call verification endpoint
+          try {
+            const list = await api.get<any>('/instagram/accounts');
+            const arr = Array.isArray(list) ? list : (list?.data || []);
+            const matched = arr.find((a: any) => a.instagramBusinessId === instagramAccount.instagramBusinessId);
+            if (matched) {
+              setConnectedAccountId(matched.id);
+            }
+          } catch (e) {
+            console.error('Failed to locate saved account id', e);
+          }
+          setStep('status');
+        }}
       />
     );
   }
 
-  // ── TASK 3 — Render Facebook pages list ──────────
-  return (
-    <div className="space-y-4">
-      {/* Instagram gradient banner */}
-      <div className="h-2 w-full rounded-full bg-gradient-to-r from-[#833ab4] via-[#fd1d1d] to-[#fcb045]" />
+  // STEP 5 — Live Status Check Checklist
+  if (step === 'status') {
+    return (
+      <AutomationStatusCard
+        accountId={connectedAccountId}
+        onFinished={() => {
+          // Clear query params clean redirect and complete success parent trigger
+          window.history.replaceState({}, '', '/integrations');
+          onSuccess();
+        }}
+      />
+    );
+  }
 
-      <div>
-        <Title level={4} className="!mb-1 flex items-center gap-2">
-          <FacebookOutlined className="text-blue-600" /> Select a Facebook Page
-        </Title>
-        <Text type="secondary" className="text-sm">
-          {pages.length > 0
-            ? <>We found <strong>{pages.length}</strong> page{pages.length !== 1 ? 's' : ''} linked to your account. Choose the one connected to your Instagram Business profile.</>
-            : 'No pages found. Retrying…'
-          }
-        </Text>
-      </div>
-
-      {/* TASK 7 — No pages empty state */}
-      {pages.length === 0 ? (
-        <div className="space-y-4">
-          <Alert
-            type="warning"
-            showIcon
-            title="No Facebook pages found"
-            description="Make sure your Instagram account is a Business Account linked to a Facebook Page, then reconnect."
-            className="rounded-2xl"
-          />
-          <Button block onClick={loadPages} icon={<ReloadOutlined />} className="rounded-xl">
-            Reload Pages
-          </Button>
-        </div>
-      ) : (
-        <div className="grid gap-3">
-          {pages.map((page) => (
-            <FacebookPageCard
-              key={page.id}
-              page={page}
-              onSelect={handleSelectPage}
-              isLoading={selectingPageId === page.id}
-            />
-          ))}
-        </div>
-      )}
-    </div>
-  );
+  return null;
 }
 
 /* ═══════════════════════════════════════════════════════
    Main Component
-═══════════════════════════════════════════════════════ */
+   ═══════════════════════════════════════════════════════ */
 export default function InstagramConnect({ oauthSession }: { oauthSession?: string | null }) {
   const { message } = App.useApp();
   const api = useApiClient();
   const queryClient = useQueryClient();
 
-  // ── Fetch connected accounts (TASK 9) ──────────────
+  // ── Fetch connected accounts ──────────────
   const {
     data: accounts = [],
     isLoading,
@@ -619,7 +879,6 @@ export default function InstagramConnect({ oauthSession }: { oauthSession?: stri
       const result = await api.get<any>('/instagram/accounts');
       console.log('RESPONSE:', result);
       
-      // Standardize extracting the list (handles direct array or unified response wrap)
       const accountsList: InstagramAccount[] = Array.isArray(result) 
         ? result 
         : (result?.data || []);
@@ -662,16 +921,12 @@ export default function InstagramConnect({ oauthSession }: { oauthSession?: stri
     onError: () => message.error('Failed to verify subscription status.'),
   });
 
-  // ── Connect Instagram (TASK 2) ────────────────────
+  // ── Connect Instagram ────────────────────
   const connectInstagram = async () => {
     console.log('========== INSTAGRAM CONNECT ==========');
     console.log('BUTTON CLICKED');
     console.log('API_URL:', `${API_URL}/instagram/connect`);
     try {
-      const response = await fetch(`${API_URL}/instagram/connect`, { redirect: 'manual' });
-      console.log('RESPONSE:', response);
-      console.log('FINAL_URL:', response.url);
-      // Backend redirects browser to Meta — follow the redirect
       window.location.href = `${API_URL}/instagram/connect`;
     } catch (error) {
       console.log('CONNECT ERROR:', error);
@@ -729,7 +984,7 @@ export default function InstagramConnect({ oauthSession }: { oauthSession?: stri
         </Button>
       </div>
 
-      {/* ── TASK 5 & 6 — Facebook page selector (shown when oauthSession is present) ── */}
+      {/* ── Facebook page selector wizard (shown when oauthSession is present) ── */}
       {oauthSession && (
         <div className="rounded-2xl border border-indigo-100 bg-white shadow-sm p-6">
           <FacebookPageSelector
@@ -764,7 +1019,7 @@ export default function InstagramConnect({ oauthSession }: { oauthSession?: stri
         </div>
       )}
 
-      {/* ── TASK 9 — Account list ── */}
+      {/* ── Account list ── */}
       {isLoading ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {[1, 2].map((i) => (
@@ -826,3 +1081,4 @@ export default function InstagramConnect({ oauthSession }: { oauthSession?: stri
     </div>
   );
 }
+
