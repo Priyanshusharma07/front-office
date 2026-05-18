@@ -1,4 +1,4 @@
-import InstagramConnect from '@/modules/dashboard/components/InstagramConnect';
+import InstagramConnect from '@/modules/instagram/components/InstagramConnect';
 
 export default function IntegrationsPage() {
   return <InstagramConnect />;

@@ -33,6 +33,12 @@ const data = [
 ];
 
 export default function DashboardOverview() {
+  const [isMounted, setIsMounted] = React.useState(false);
+
+  React.useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
   return (
     <div className="space-y-8">
       <div>
@@ -95,7 +101,7 @@ export default function DashboardOverview() {
 
       <Card title="Activity Trends" className="shadow-sm">
         <div style={{ height: 350 }}>
-          {typeof window !== 'undefined' && (
+          {isMounted && (
             <ResponsiveContainer width="100%" height="100%">
               <AreaChart data={data}>
                 <defs>

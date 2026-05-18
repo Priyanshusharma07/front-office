@@ -30,16 +30,10 @@ interface InstagramAccount {
 const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
 
 async function fetchAccounts(): Promise<InstagramAccount[]> {
-  try {
-    const { data } = await axios.get(`${API}/instagram/accounts`, {
-      headers: { Authorization: `Bearer mock_token` },
-    });
-    return Array.isArray(data) ? data : [];
-  } catch {
-    // In dev mode (no real Clerk token), backend rejects all requests.
-    // Return empty array so the onboarding state is shown.
-    return [];
-  }
+  const { data } = await axios.get(`${API}/instagram/accounts`, {
+    headers: { Authorization: `Bearer mock_token` },
+  });
+  return Array.isArray(data) ? data : [];
 }
 
 

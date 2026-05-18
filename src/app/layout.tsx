@@ -30,30 +30,6 @@ export default function RootLayout({
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
       suppressHydrationWarning
     >
-      <head>
-        <script
-          dangerouslySetInnerHTML={{
-            __html: `
-              (function() {
-                const attr = 'bis_skin_checked';
-                const removeAttr = (node) => {
-                  if (node.nodeType === 1) {
-                    if (node.hasAttribute(attr)) node.removeAttribute(attr);
-                    node.querySelectorAll('[' + attr + ']').forEach(el => el.removeAttribute(attr));
-                  }
-                };
-                const observer = new MutationObserver((mutations) => {
-                  mutations.forEach((mutation) => {
-                    mutation.addedNodes.forEach(removeAttr);
-                  });
-                });
-                observer.observe(document.documentElement, { childList: true, subtree: true });
-                document.addEventListener('DOMContentLoaded', () => removeAttr(document.body));
-              })();
-            `,
-          }}
-        />
-      </head>
       <body className="min-h-full flex flex-col" suppressHydrationWarning>
         <AntdRegistry>
           <Providers>{children}</Providers>

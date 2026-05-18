@@ -7,7 +7,7 @@ export const InstagramService = {
    * We navigate the browser directly to this URL.
    */
   getConnectUrl(): string {
-    const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api';
+    const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
     return `${baseUrl}/instagram/connect`;
   },
 
