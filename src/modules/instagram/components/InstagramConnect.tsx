@@ -1,22 +1,25 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { useSearchParams } from 'next/navigation';
 import {
   Button, Avatar, Tag, Typography, Popconfirm,
-  App, Skeleton, Alert, Tooltip,
+  App, Skeleton, Alert, Tooltip, Card, Spin,
+  Checkbox, Divider,
 } from 'antd';
 import {
   InstagramOutlined, CheckCircleFilled, ExclamationCircleFilled,
   DisconnectOutlined, ReloadOutlined, PlusOutlined,
-  ClockCircleOutlined, CheckOutlined,
+  ClockCircleOutlined, CheckOutlined, FacebookOutlined,
+  ArrowRightOutlined, SaveOutlined, ThunderboltOutlined,
 } from '@ant-design/icons';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import axios from 'axios';
+import { useApiClient } from '@/services/useApiClient';
 
 const { Title, Text, Paragraph } = Typography;
 
-/* ─── types ─────────────────────────────────────────── */
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+
+/* ─── Types ──────────────────────────────────────────── */
 interface InstagramAccount {
   id: string;
   username: string;
@@ -24,60 +27,158 @@ interface InstagramAccount {
   isSubscribed: boolean;
   tokenExpiresAt?: string;
   createdAt: string;
+  triggers?: string[];
 }
 
-/* ─── API helpers (no Clerk — uses mock token for now) ─ */
-const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+interface FacebookPage {
+  id: string;
+  name: string;
+  access_token: string;
+  category: string;
+  instagramUsername?: string;
+  picture?: { data: { url: string } };
+}
 
-async function fetchAccounts(): Promise<InstagramAccount[]> {
-  const url = `${API}/instagram/accounts`;
-  console.log('REQUEST URL:', url);
-  const response = await axios.get(url, {
-    headers: { Authorization: `Bearer mock_token` },
+interface AvailablePagesResponse {
+  name: string;
+  id: string;
+  pages: FacebookPage[];
+}
+
+const TRIGGER_OPTIONS = [
+  { key: 'comments', label: 'Comments', icon: '💬' },
+  { key: 'messages', label: 'Messages', icon: '✉️' },
+  { key: 'mentions', label: 'Mentions', icon: '@' },
+  { key: 'posts', label: 'Posts', icon: '📸' },
+];
+
+const STEPS = [
+  { n: 1, label: 'Connect Facebook' },
+  { n: 2, label: 'Select Page' },
+  { n: 3, label: 'Configure Triggers' },
+  { n: 4, label: 'Go Live' },
+];
+
+/* ═══════════════════════════════════════════════════════
+   FacebookPageCard
+═══════════════════════════════════════════════════════ */
+function FacebookPageCard({
+  page,
+  onSelect,
+  isLoading,
+}: {
+  page: FacebookPage;
+  onSelect: (page: FacebookPage) => void;
+  isLoading: boolean;
+}) {
+  return (
+    <Card
+      hoverable
+      className="rounded-2xl border-2 border-gray-100 hover:border-indigo-300 transition-all duration-200"
+      onClick={() => !isLoading && onSelect(page)}
+    >
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-4">
+          <Avatar
+            size={56}
+            src={page.picture?.data?.url}
+            icon={!page.picture?.data?.url && <FacebookOutlined />}
+            className="bg-gradient-to-tr from-blue-500 to-indigo-600"
+          />
+          <div>
+            <Title level={5} className="!mb-0">{page.name}</Title>
+            <Text type="secondary" className="text-xs">{page.category}</Text>
+            {page.instagramUsername && (
+              <div className="mt-1">
+                <Tag color="purple" className="rounded-full text-xs">
+                  <InstagramOutlined className="mr-1" />
+                  @{page.instagramUsername}
+                </Tag>
+              </div>
+            )}
+          </div>
+        </div>
+        {isLoading ? <Spin size="small" /> : <ArrowRightOutlined className="text-gray-400" />}
+      </div>
+    </Card>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════
+   TriggerConfig
+═══════════════════════════════════════════════════════ */
+function TriggerConfig({
+  accountId,
+  currentTriggers,
+  onSaved,
+}: {
+  accountId: string;
+  currentTriggers?: string[];
+  onSaved: () => void;
+}) {
+  const { message } = App.useApp();
+  const api = useApiClient();
+  const [selected, setSelected] = useState<string[]>(currentTriggers || []);
+
+  const saveMutation = useMutation({
+    mutationFn: async () => {
+      console.log('REQUEST URL:', `${API_URL}/instagram/save-trigger`);
+      return api.post('/instagram/save-trigger', { accountId, triggers: selected });
+    },
+    onSuccess: () => {
+      message.success('Automation triggers saved!');
+      onSaved();
+    },
+    onError: (err: any) => {
+      message.error(err?.message || 'Failed to save triggers');
+    },
   });
-  console.log('RESPONSE:', response);
-  return Array.isArray(response.data) ? response.data : [];
-}
 
+  const toggle = (key: string) =>
+    setSelected((prev) =>
+      prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key]
+    );
 
-async function disconnectAccount(id: string): Promise<void> {
-  const url = `${API}/instagram/accounts/${id}`;
-  console.log('REQUEST URL:', url);
-  const response = await axios.delete(url, {
-    headers: { Authorization: `Bearer mock_token` },
-  });
-  console.log('RESPONSE:', response);
-}
-
-async function verifySubscription(id: string): Promise<any> {
-  const url = `${API}/instagram/verify-subscription/${id}`;
-  console.log('REQUEST URL:', url);
-  const response = await axios.get(url, {
-    headers: { Authorization: `Bearer mock_token` },
-  });
-  console.log('RESPONSE:', response);
-  return response.data;
-}
-
-/* ─── redirect to backend OAuth ──────────────────────── */
-const API_URL = API;
-
-const connectInstagram = async () => {
-  console.log('========== INSTAGRAM CONNECT ==========')
-  console.log('BUTTON CLICKED')
-  console.log('API_URL:', `${API_URL}/instagram/connect`)
-  try {
-    const response = await axios.get(`${API_URL}/instagram/connect`)
-    console.log('RESPONSE:', response)
-    console.log('FINAL_URL:', response?.request?.responseURL)
-    const finalUrl = response?.request?.responseURL || `${API_URL}/instagram/connect`;
-    window.location.href = finalUrl;
-  }
-  catch(error){
-    console.log('CONNECT ERROR:', error)
-    window.location.href = `${API_URL}/instagram/connect`;
-  }
-  console.log('=======================================')
+  return (
+    <div className="space-y-4">
+      <div>
+        <Title level={5} className="!mb-1 flex items-center gap-2">
+          <ThunderboltOutlined className="text-indigo-500" /> Automation Triggers
+        </Title>
+        <Text type="secondary" className="text-sm">
+          Choose which events will trigger an automated private reply.
+        </Text>
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        {TRIGGER_OPTIONS.map(({ key, label, icon }) => (
+          <div
+            key={key}
+            onClick={() => toggle(key)}
+            className={`flex items-center gap-3 p-3 rounded-xl border-2 cursor-pointer transition-all duration-150
+              ${selected.includes(key)
+                ? 'border-indigo-500 bg-indigo-50'
+                : 'border-gray-100 hover:border-indigo-200'
+              }`}
+          >
+            <Checkbox checked={selected.includes(key)} />
+            <span className="text-base">{icon}</span>
+            <Text className="font-medium text-sm">{label}</Text>
+          </div>
+        ))}
+      </div>
+      <Button
+        type="primary"
+        icon={<SaveOutlined />}
+        loading={saveMutation.isPending}
+        disabled={selected.length === 0}
+        onClick={() => saveMutation.mutate()}
+        className="w-full h-10 rounded-xl"
+        style={{ background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', border: 'none' }}
+      >
+        Save Triggers
+      </Button>
+    </div>
+  );
 }
 
 /* ═══════════════════════════════════════════════════════
@@ -89,18 +190,23 @@ function AccountCard({
   isDisconnecting,
   onVerify,
   isVerifying,
+  onRefetch,
 }: {
   account: InstagramAccount;
   onDisconnect: (id: string) => void;
   isDisconnecting: boolean;
   onVerify: (id: string) => void;
   isVerifying: boolean;
+  onRefetch: () => void;
 }) {
+  const [showTriggers, setShowTriggers] = useState(false);
   const [daysLeft, setDaysLeft] = useState<number | null>(null);
 
   useEffect(() => {
     if (account.tokenExpiresAt) {
-      const days = Math.floor((new Date(account.tokenExpiresAt).getTime() - Date.now()) / 86_400_000);
+      const days = Math.floor(
+        (new Date(account.tokenExpiresAt).getTime() - Date.now()) / 86_400_000
+      );
       setDaysLeft(days);
     }
   }, [account.tokenExpiresAt]);
@@ -112,9 +218,9 @@ function AccountCard({
       {/* Instagram gradient top bar */}
       <div className="h-1.5 w-full bg-gradient-to-r from-[#833ab4] via-[#fd1d1d] to-[#fcb045]" />
 
-      <div className="p-6">
+      <div className="p-6 space-y-4">
         {/* Avatar + username */}
-        <div className="flex items-center gap-4 mb-5">
+        <div className="flex items-center gap-4">
           <div className="relative flex-shrink-0">
             <Avatar
               src={account.profilePicture || `https://ui-avatars.com/api/?name=${account.username}&background=e0e7ff&color=4f46e5&bold=true`}
@@ -134,73 +240,77 @@ function AccountCard({
           </div>
         </div>
 
-        {/* Token expiry warning */}
+        {/* Trigger status */}
+        {account.triggers && account.triggers.length > 0 && (
+          <div className="flex flex-wrap gap-1">
+            {account.triggers.map((t) => (
+              <Tag key={t} color="purple" className="rounded-full text-xs m-0">
+                {TRIGGER_OPTIONS.find((o) => o.key === t)?.label ?? t}
+              </Tag>
+            ))}
+          </div>
+        )}
+
+        {/* Token expiry */}
         {expiringSoon && (
           <Alert
-            className="mb-4 rounded-xl text-xs py-2"
-            icon={<ClockCircleOutlined />}
+            type="warning"
             showIcon
-            type={daysLeft! <= 0 ? 'error' : 'warning'}
-            title={
-              daysLeft! <= 0
-                ? 'Token expired — reconnect to resume automations.'
-                : `Token expires in ${daysLeft} day${daysLeft !== 1 ? 's' : ''}.`
-            }
+            icon={<ClockCircleOutlined />}
+            title={`Token expires in ${daysLeft} days`}
+            description="Reconnect to refresh your access token."
+            className="rounded-xl py-2"
           />
         )}
 
-        {/* Stats row */}
-        <div className="flex items-center justify-between bg-gray-50 rounded-xl px-4 py-3 mb-5 text-xs text-gray-500">
-          <div className="flex items-center gap-2">
-            <span>Webhooks</span>
-            <Tooltip title="Verify if your webhooks are active on Meta's servers">
-              <Button 
-                type="text" 
-                size="small" 
-                icon={<ReloadOutlined className={isVerifying ? 'animate-spin' : ''} />} 
-                onClick={() => onVerify(account.id)}
-                className="h-6 w-6 p-0 flex items-center justify-center text-gray-400 hover:text-indigo-600"
-                disabled={isVerifying}
-              />
-            </Tooltip>
-          </div>
-          <span className={account.isSubscribed ? 'text-emerald-600 font-semibold' : ''}>
-            {account.isSubscribed ? '✓ Subscribed' : 'Not subscribed'}
-          </span>
-        </div>
+        {/* Trigger config toggle */}
+        <Button
+          block
+          icon={<ThunderboltOutlined />}
+          onClick={() => setShowTriggers((v) => !v)}
+          className="rounded-xl"
+        >
+          {showTriggers ? 'Hide' : 'Configure'} Triggers
+        </Button>
+
+        {showTriggers && (
+          <TriggerConfig
+            accountId={account.id}
+            currentTriggers={account.triggers}
+            onSaved={() => { setShowTriggers(false); onRefetch(); }}
+          />
+        )}
 
         {/* Actions */}
-        <div className="flex gap-2">
+        <div className="flex gap-2 pt-2">
+          <Tooltip title="Verify webhook subscription">
+            <Button
+              size="small"
+              icon={<ReloadOutlined />}
+              loading={isVerifying}
+              onClick={() => onVerify(account.id)}
+              className="rounded-lg flex-1"
+            >
+              Verify
+            </Button>
+          </Tooltip>
           <Popconfirm
-            title="Disconnect account?"
-            description="All automations for this account will pause."
-            okText="Disconnect"
-            cancelText="Cancel"
-            okButtonProps={{ danger: true }}
+            title="Disconnect Instagram?"
+            description="This will remove the account and pause all automations."
             onConfirm={() => onDisconnect(account.id)}
+            okText="Disconnect"
+            okButtonProps={{ danger: true }}
           >
             <Button
-              danger
               size="small"
+              danger
               icon={<DisconnectOutlined />}
               loading={isDisconnecting}
-              className="flex-1"
+              className="rounded-lg flex-1"
             >
               Disconnect
             </Button>
           </Popconfirm>
-
-          {(!account.isSubscribed || expiringSoon) && (
-            <Button
-              type="primary"
-              size="small"
-              icon={<ReloadOutlined />}
-              onClick={startConnect}
-              className="flex-1"
-            >
-              Reconnect
-            </Button>
-          )}
         </div>
       </div>
     </div>
@@ -208,30 +318,19 @@ function AccountCard({
 }
 
 /* ═══════════════════════════════════════════════════════
-   Empty / Onboarding State
+   EmptyState
 ═══════════════════════════════════════════════════════ */
-const STEPS = [
-  { n: '1', label: 'Click "Connect Account"' },
-  { n: '2', label: 'Log in with Facebook/Instagram' },
-  { n: '3', label: 'Approve the requested permissions' },
-  { n: '4', label: "You're live — start automating!" },
-];
-
-function EmptyState() {
+function EmptyState({ onConnect }: { onConnect: () => void }) {
   return (
     <div className="rounded-2xl border-2 border-dashed border-indigo-100 bg-gradient-to-b from-indigo-50 to-white p-10 text-center">
-      {/* Icon */}
       <div className="mx-auto mb-6 w-20 h-20 rounded-full bg-gradient-to-br from-[#833ab4] via-[#fd1d1d] to-[#fcb045] flex items-center justify-center shadow-lg">
         <InstagramOutlined className="text-4xl text-white" />
       </div>
-
       <Title level={4} className="!mb-2">Connect your Instagram Business account</Title>
       <Paragraph type="secondary" className="max-w-md mx-auto !mb-8">
-        Link your Instagram Business profile so BrokerageX can listen for comments
-        and automatically send private replies.
+        Link your Instagram Business profile so BrokerageX can listen for comments and automatically send private replies.
       </Paragraph>
 
-      {/* Steps */}
       <div className="flex justify-center gap-6 flex-wrap mb-8">
         {STEPS.map(({ n, label }) => (
           <div key={n} className="flex flex-col items-center gap-2 max-w-[100px]">
@@ -247,7 +346,7 @@ function EmptyState() {
         type="primary"
         size="large"
         icon={<PlusOutlined />}
-        onClick={connectInstagram}
+        onClick={onConnect}
         style={{ background: 'linear-gradient(135deg, #833ab4, #fd1d1d, #fcb045)', border: 'none' }}
         className="shadow-lg px-8"
       >
@@ -258,39 +357,150 @@ function EmptyState() {
 }
 
 /* ═══════════════════════════════════════════════════════
+   Facebook Pages Selector (TASK 5 & 6)
+   Shown when oauthSession is present in URL
+═══════════════════════════════════════════════════════ */
+function FacebookPageSelector({
+  oauthSession,
+  onSuccess,
+}: {
+  oauthSession: string;
+  onSuccess: () => void;
+}) {
+  const { message } = App.useApp();
+  const api = useApiClient();
+  const [selectingPageId, setSelectingPageId] = useState<string | null>(null);
+
+  const { data, isLoading, error } = useQuery<AvailablePagesResponse>({
+    queryKey: ['available-pages', oauthSession],
+    queryFn: async () => {
+      const url = `/instagram/available-pages?oauthSession=${oauthSession}`;
+      console.log('REQUEST URL:', `${API_URL}${url}`);
+      return api.get(url);
+    },
+    enabled: !!oauthSession,
+    retry: 1,
+  });
+
+  const selectMutation = useMutation({
+    mutationFn: async (page: FacebookPage) => {
+      setSelectingPageId(page.id);
+      console.log('REQUEST URL:', `${API_URL}/instagram/select-account`);
+      return api.post('/instagram/select-account', {
+        pageId: page.id,
+        pageAccessToken: page.access_token,
+        name: page.name,
+        oauthSession,
+      });
+    },
+    onSuccess: () => {
+      message.success('Instagram account connected!');
+      // Remove oauthSession from URL and reload accounts
+      window.history.replaceState({}, '', '/integrations');
+      onSuccess();
+    },
+    onError: (err: any) => {
+      setSelectingPageId(null);
+      message.error(err?.response?.data?.message || 'Failed to connect page');
+    },
+  });
+
+  if (isLoading) {
+    return (
+      <div className="rounded-2xl border border-indigo-100 bg-indigo-50 p-8 text-center space-y-4">
+        <Spin size="large" />
+        <Text type="secondary">Loading your Facebook pages…</Text>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <Alert
+        type="error"
+        showIcon
+        title="Could not load Facebook pages"
+        description={(error as any)?.response?.data?.message || 'The OAuth session may have expired. Please connect again.'}
+        className="rounded-2xl"
+      />
+    );
+  }
+
+  const pages = data?.pages ?? [];
+
+  return (
+    <div className="space-y-4">
+      {/* Instagram gradient banner */}
+      <div className="h-2 w-full rounded-full bg-gradient-to-r from-[#833ab4] via-[#fd1d1d] to-[#fcb045]" />
+
+      <div>
+        <Title level={4} className="!mb-1 flex items-center gap-2">
+          <FacebookOutlined className="text-blue-600" /> Select a Facebook Page
+        </Title>
+        <Text type="secondary" className="text-sm">
+          We found <strong>{pages.length}</strong> page{pages.length !== 1 ? 's' : ''} linked to your account.
+          Choose the one connected to your Instagram Business profile.
+        </Text>
+      </div>
+
+      {pages.length === 0 ? (
+        <Alert
+          type="warning"
+          showIcon
+          title="No pages found"
+          description="Make sure your Instagram account is a Business Account linked to a Facebook Page, then reconnect."
+          className="rounded-2xl"
+        />
+      ) : (
+        <div className="grid gap-3">
+          {pages.map((page) => (
+            <FacebookPageCard
+              key={page.id}
+              page={page}
+              onSelect={(p) => selectMutation.mutate(p)}
+              isLoading={selectMutation.isPending && selectingPageId === page.id}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════
    Main Component
 ═══════════════════════════════════════════════════════ */
-export default function InstagramConnect() {
+export default function InstagramConnect({ oauthSession }: { oauthSession?: string | null }) {
   const { message } = App.useApp();
+  const api = useApiClient();
   const queryClient = useQueryClient();
-  const searchParams = useSearchParams();
-  const justConnected = searchParams.get('connected') === 'true';
 
-  // When redirected back from page selection, force-refetch so the new account appears
-  useEffect(() => {
-    if (justConnected) {
-      queryClient.invalidateQueries({ queryKey: ['instagram-accounts'] });
-    }
-  }, [justConnected, queryClient]);
-
-  const { data: accounts = [], isLoading, isError } = useQuery<InstagramAccount[]>({
+  // ── Fetch connected accounts (TASK 9) ──────────────
+  const {
+    data: accounts = [],
+    isLoading,
+    isError,
+    refetch,
+  } = useQuery<InstagramAccount[]>({
     queryKey: ['instagram-accounts'],
-    queryFn: fetchAccounts,
+    queryFn: async () => {
+      console.log('REQUEST URL:', `${API_URL}/instagram/accounts`);
+      const result = await api.get<InstagramAccount[]>('/instagram/accounts');
+      console.log('RESPONSE:', result);
+      console.log('MAPPED STATE:', result.map((a) => ({ id: a.id, username: a.username, isSubscribed: a.isSubscribed })));
+      console.log('RENDERED UI STATE:', result.length > 0 ? 'Connected Accounts List' : 'No Instagram account connected');
+      return Array.isArray(result) ? result : [];
+    },
     retry: 1,
     staleTime: 30_000,
   });
 
-  // Phase 5 logs
-  useEffect(() => {
-    if (!isLoading) {
-      console.log('RESPONSE:', accounts);
-      console.log('MAPPED STATE:', accounts.map(acc => ({ id: acc.id, username: acc.username, isSubscribed: acc.isSubscribed })));
-      console.log('RENDERED UI STATE:', accounts.length > 0 ? 'Connected Accounts List' : 'No Instagram account connected');
-    }
-  }, [accounts, isLoading]);
-
+  // ── Disconnect ────────────────────────────────────
   const disconnectMutation = useMutation({
-    mutationFn: disconnectAccount,
+    mutationFn: async (id: string) => {
+      console.log('REQUEST URL:', `${API_URL}/instagram/accounts/${id}`);
+      return api.delete(`/instagram/accounts/${id}`);
+    },
     onSuccess: () => {
       message.success('Account disconnected.');
       queryClient.invalidateQueries({ queryKey: ['instagram-accounts'] });
@@ -298,10 +508,14 @@ export default function InstagramConnect() {
     onError: () => message.error('Failed to disconnect. Try again.'),
   });
 
+  // ── Verify webhook ────────────────────────────────
   const verifyMutation = useMutation({
-    mutationFn: verifySubscription,
-    onSuccess: (data) => {
-      if (data.isSubscribed) {
+    mutationFn: async (id: string) => {
+      console.log('REQUEST URL:', `${API_URL}/instagram/verify-subscription/${id}`);
+      return api.get(`/instagram/verify-subscription/${id}`);
+    },
+    onSuccess: (data: any) => {
+      if (data?.isSubscribed) {
         message.success('Webhook subscription verified!');
       } else {
         message.warning('Webhook not active. Please reconnect.');
@@ -311,16 +525,39 @@ export default function InstagramConnect() {
     onError: () => message.error('Failed to verify subscription status.'),
   });
 
+  // ── Connect Instagram (TASK 2) ────────────────────
+  const connectInstagram = async () => {
+    console.log('========== INSTAGRAM CONNECT ==========');
+    console.log('BUTTON CLICKED');
+    console.log('API_URL:', `${API_URL}/instagram/connect`);
+    try {
+      const response = await fetch(`${API_URL}/instagram/connect`, { redirect: 'manual' });
+      console.log('RESPONSE:', response);
+      console.log('FINAL_URL:', response.url);
+      // Backend redirects browser to Meta — follow the redirect
+      window.location.href = `${API_URL}/instagram/connect`;
+    } catch (error) {
+      console.log('CONNECT ERROR:', error);
+      window.location.href = `${API_URL}/instagram/connect`;
+    }
+    console.log('=======================================');
+  };
+
+  const justConnected = typeof window !== 'undefined'
+    ? new URLSearchParams(window.location.search).get('connected') === 'true'
+    : false;
+
   return (
     <div className="space-y-8 max-w-5xl mx-auto" suppressHydrationWarning>
-      {/* ── Success Banner (shown right after connecting) ── */}
+
+      {/* ── Success Banner (post page-selection) ── */}
       {justConnected && (
         <Alert
           type="success"
           showIcon
           icon={<CheckCircleFilled />}
           title="Instagram account connected!"
-          description="Your account is now active. Automations will trigger on incoming comments."
+          description="Your account is now active. Configure your automation triggers below."
           className="rounded-2xl"
           closable
         />
@@ -355,28 +592,42 @@ export default function InstagramConnect() {
         </Button>
       </div>
 
-      {/* ── Permission checklist (always visible) ── */}
-      <div className="rounded-2xl border border-gray-100 bg-white p-6 shadow-sm">
-        <Text strong className="text-gray-700 block mb-3 text-sm uppercase tracking-wide">
-          Required Permissions
-        </Text>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-          {[
-            'instagram_basic',
-            'instagram_manage_comments',
-            'instagram_manage_messages',
-            'pages_show_list',
-            'pages_read_engagement',
-          ].map((perm) => (
-            <div key={perm} className="flex items-center gap-2 text-sm text-gray-600">
-              <CheckOutlined className="text-emerald-500 text-xs" />
-              <code className="text-xs text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded">{perm}</code>
-            </div>
-          ))}
+      {/* ── TASK 5 & 6 — Facebook page selector (shown when oauthSession is present) ── */}
+      {oauthSession && (
+        <div className="rounded-2xl border border-indigo-100 bg-white shadow-sm p-6">
+          <FacebookPageSelector
+            oauthSession={oauthSession}
+            onSuccess={() => {
+              queryClient.invalidateQueries({ queryKey: ['instagram-accounts'] });
+            }}
+          />
         </div>
-      </div>
+      )}
 
-      {/* ── Account list ── */}
+      {/* ── Required Permissions checklist ── */}
+      {!oauthSession && (
+        <div className="rounded-2xl border border-gray-100 bg-white p-6 shadow-sm">
+          <Text strong className="text-gray-700 block mb-3 text-sm uppercase tracking-wide">
+            Required Permissions
+          </Text>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            {[
+              'instagram_basic',
+              'instagram_manage_comments',
+              'instagram_manage_messages',
+              'pages_show_list',
+              'pages_read_engagement',
+            ].map((perm) => (
+              <div key={perm} className="flex items-center gap-2 text-sm text-gray-600">
+                <CheckOutlined className="text-emerald-500 text-xs" />
+                <code className="text-xs text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded">{perm}</code>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* ── TASK 9 — Account list ── */}
       {isLoading ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {[1, 2].map((i) => (
@@ -392,13 +643,13 @@ export default function InstagramConnect() {
           title="Could not load connected accounts"
           description="The backend may be offline, or you haven't connected any accounts yet."
           action={
-            <Button size="small" onClick={() => queryClient.invalidateQueries({ queryKey: ['instagram-accounts'] })}>
+            <Button size="small" onClick={() => refetch()}>
               Retry
             </Button>
           }
           className="rounded-2xl"
         />
-      ) : accounts.length === 0 ? (
+      ) : accounts.length === 0 && !oauthSession ? (
         <div className="space-y-6">
           <Alert
             type="info"
@@ -407,9 +658,9 @@ export default function InstagramConnect() {
             description="Link your Instagram Business account to enable automatic private replies."
             className="rounded-2xl shadow-sm"
           />
-          <EmptyState />
+          <EmptyState onConnect={connectInstagram} />
         </div>
-      ) : (
+      ) : accounts.length > 0 ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {accounts.map((account) => (
             <AccountCard
@@ -419,10 +670,11 @@ export default function InstagramConnect() {
               isDisconnecting={disconnectMutation.isPending}
               onVerify={verifyMutation.mutate}
               isVerifying={verifyMutation.isPending && verifyMutation.variables === account.id}
+              onRefetch={() => queryClient.invalidateQueries({ queryKey: ['instagram-accounts'] })}
             />
           ))}
 
-          {/* ── Add another ── */}
+          {/* Add another */}
           <button
             onClick={connectInstagram}
             className="rounded-2xl border-2 border-dashed border-gray-200 hover:border-indigo-300 hover:bg-indigo-50 transition-all duration-200 flex flex-col items-center justify-center gap-3 p-8 text-gray-400 hover:text-indigo-500 cursor-pointer min-h-[200px]"
@@ -433,7 +685,7 @@ export default function InstagramConnect() {
             <Text className="text-sm font-medium text-current">Add Another Account</Text>
           </button>
         </div>
-      )}
+      ) : null}
     </div>
   );
 }

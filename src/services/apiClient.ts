@@ -1,34 +1,26 @@
 import axios from 'axios';
 
+/**
+ * Base axios instance — no auth interceptor here.
+ * Auth token is injected per-request via useApiClient() hook.
+ * This file is safe to import in both server and client contexts.
+ */
 const apiClient = axios.create({
-  baseURL: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api',
+  baseURL: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001',
   headers: {
     'Content-Type': 'application/json',
   },
 });
 
-// Request Interceptor for Auth Token
-apiClient.interceptors.request.use(
-  async (config) => {
-    // Note: In Next.js with Clerk, we usually get the token in the component/hook 
-    // and pass it or use a custom hook that wraps axios.
-    // This is a placeholder for global logic if needed.
-    return config;
-  },
-  (error) => Promise.reject(error)
-);
-
 // Response Interceptor for Error Handling
 apiClient.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    console.log('RESPONSE:', response.config.url);
+    console.log('STATUS:', response.status);
+    return response;
+  },
   (error) => {
-    const message = error.response?.data?.message || 'Something went wrong';
-    console.error('[API Error]:', message);
-    
-    if (error.response?.status === 401) {
-      // Handle unauthorized (redirect to login)
-    }
-    
+    console.log('API ERROR:', error.response?.data);
     return Promise.reject(error);
   }
 );

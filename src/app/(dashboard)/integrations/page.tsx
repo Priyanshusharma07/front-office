@@ -1,11 +1,15 @@
+'use client';
+
 import { Suspense } from 'react';
+import { useSearchParams } from 'next/navigation';
 import InstagramConnect from '@/modules/instagram/components/InstagramConnect';
 import { Spin } from 'antd';
 
-export const metadata = {
-  title: 'Integrations – BrokerageX',
-  description: 'Connect your Instagram Business accounts to enable automated replies.',
-};
+function IntegrationsContent() {
+  const searchParams = useSearchParams();
+  const oauthSession = searchParams.get('oauthSession');
+  return <InstagramConnect oauthSession={oauthSession} />;
+}
 
 export default function IntegrationsPage() {
   return (
@@ -14,7 +18,7 @@ export default function IntegrationsPage() {
         <Spin size="large" />
       </div>
     }>
-      <InstagramConnect />
+      <IntegrationsContent />
     </Suspense>
   );
 }

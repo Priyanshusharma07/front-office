@@ -20,7 +20,7 @@ import {
   ArrowRightOutlined,
 } from '@ant-design/icons';
 import { useQuery, useMutation } from '@tanstack/react-query';
-import axios from 'axios';
+import { useApiClient } from '@/services/useApiClient';
 
 const { Title, Text, Paragraph } = Typography;
 
@@ -46,6 +46,7 @@ interface AvailablePagesResponse {
 
 function SelectContent() {
   const { message } = App.useApp();
+  const api = useApiClient();
   const router = useRouter();
   const searchParams = useSearchParams();
   const session = searchParams.get('session');
@@ -89,13 +90,11 @@ function SelectContent() {
     queryKey: ['available-pages', session],
     queryFn: async () => {
       if (!session) throw new Error('No session provided');
-      const url = `${API}/instagram/available-pages?session=${session}`;
-      console.log('REQUEST URL:', url);
-      const response = await axios.get(url, {
-        headers: { Authorization: `Bearer mock_token` },
-      });
-      console.log('RESPONSE:', response);
-      return response.data;
+      const url = `/instagram/available-pages?session=${session}`;
+      console.log('REQUEST URL:', `${API}${url}`);
+      const result = await api.get<AvailablePagesResponse>(url);
+      console.log('RESPONSE:', result);
+      return result;
     },
     enabled: !!session && isMounted,
   });
@@ -103,21 +102,14 @@ function SelectContent() {
   // 2. Mutation to save selected account
   const selectMutation = useMutation({
     mutationFn: async (page: FacebookPage) => {
-      const url = `${API}/instagram/select-account`;
-      console.log('REQUEST URL:', url);
-      const response = await axios.post(
-        url,
-        {
-          pageId: page.id,
-          pageAccessToken: page.access_token,
-          name: page.name,
-        },
-        {
-          headers: { Authorization: `Bearer mock_token` },
-        }
-      );
-      console.log('RESPONSE:', response);
-      return response.data;
+      console.log('REQUEST URL:', `${API}/instagram/select-account`);
+      const result = await api.post('/instagram/select-account', {
+        pageId: page.id,
+        pageAccessToken: page.access_token,
+        name: page.name,
+      });
+      console.log('RESPONSE:', result);
+      return result;
     },
     onSuccess: () => {
       message.success('Account connected successfully!');
