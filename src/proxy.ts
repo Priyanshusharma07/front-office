@@ -14,12 +14,8 @@ export default clerkMiddleware(async (auth, request) => {
   console.log('PATH:', pathname);
 
   if (!isPublicRoute(request)) {
-    const { userId } = await auth();
-    console.log('TOKEN_EXISTS:', !!userId);
-    if (!userId) {
-      console.log('REDIRECT_TO_LOGIN:', pathname);
-      return (await auth()).redirectToSignIn({ returnBackUrl: request.url });
-    }
+    console.log('PROTECTING PATH:', pathname);
+    await auth.protect();
   }
 });
 
