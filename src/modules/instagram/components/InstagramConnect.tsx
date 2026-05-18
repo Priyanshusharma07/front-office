@@ -616,11 +616,17 @@ export default function InstagramConnect({ oauthSession }: { oauthSession?: stri
     queryKey: ['instagram-accounts'],
     queryFn: async () => {
       console.log('REQUEST URL:', `${API_URL}/instagram/accounts`);
-      const result = await api.get<InstagramAccount[]>('/instagram/accounts');
+      const result = await api.get<any>('/instagram/accounts');
       console.log('RESPONSE:', result);
-      console.log('MAPPED STATE:', result.map((a) => ({ id: a.id, username: a.username, isSubscribed: a.isSubscribed })));
-      console.log('RENDERED UI STATE:', result.length > 0 ? 'Connected Accounts List' : 'No Instagram account connected');
-      return Array.isArray(result) ? result : [];
+      
+      // Standardize extracting the list (handles direct array or unified response wrap)
+      const accountsList: InstagramAccount[] = Array.isArray(result) 
+        ? result 
+        : (result?.data || []);
+        
+      console.log('MAPPED STATE:', accountsList.map((a) => ({ id: a.id, username: a.username, isSubscribed: a.isSubscribed })));
+      console.log('RENDERED UI STATE:', accountsList.length > 0 ? 'Connected Accounts List' : 'No Instagram account connected');
+      return accountsList;
     },
     retry: 1,
     staleTime: 30_000,
