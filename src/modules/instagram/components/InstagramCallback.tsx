@@ -17,14 +17,29 @@ function CallbackContent() {
   const errorMsg = rawError ? decodeURIComponent(rawError) : null;
 
   useEffect(() => {
-    const token = searchParams.get('token');
+    console.log('========== CALLBACK ==========')
+    console.log('CURRENT URL:', window.location.href)
+    console.log('QUERY:', window.location.search)
+    const params = new URLSearchParams(window.location.search)
+    console.log('CODE:', params.get('code'))
+    console.log('STATE:', params.get('state'))
+    console.log('TOKEN:', params.get('token'))
+    console.log('SESSION:', params.get('session'))
+    console.log('================================')
+  }, []);
+
+  useEffect(() => {
+    const session = searchParams.get('session');
     const t = setInterval(() => {
       setCountdown((c) => {
         if (c <= 1) {
           clearInterval(t);
-          if (success && token) {
-            router.replace(`/instagram/select?token=${token}`);
+          if (success && session) {
+            const redirectUrl = `/instagram/select?session=${session}`;
+            console.log('REDIRECTING:', redirectUrl);
+            router.replace(redirectUrl);
           } else {
+            console.log('REDIRECTING:', '/integrations');
             router.replace('/integrations');
           }
           return 0;
@@ -34,6 +49,8 @@ function CallbackContent() {
     }, 1000);
     return () => clearInterval(t);
   }, [router, searchParams, success]);
+
+  const session = searchParams.get('session');
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-indigo-50 via-white to-purple-50 px-4" suppressHydrationWarning>
@@ -90,15 +107,22 @@ function CallbackContent() {
           </Text>
 
           <div className="flex gap-3 justify-center">
-            {success && searchParams.get('token') ? (
+            {success && session ? (
               <Button
                 type="primary"
-                onClick={() => router.replace(`/instagram/select?token=${searchParams.get('token')}`)}
+                onClick={() => {
+                  const redirectUrl = `/instagram/select?session=${session}`;
+                  console.log('REDIRECTING:', redirectUrl);
+                  router.replace(redirectUrl);
+                }}
               >
                 Select Instagram Page
               </Button>
             ) : (
-              <Button type="primary" onClick={() => router.replace('/integrations')}>
+              <Button type="primary" onClick={() => {
+                console.log('REDIRECTING:', '/integrations');
+                router.replace('/integrations');
+              }}>
                 Go to Integrations
               </Button>
             )}

@@ -48,33 +48,65 @@ function SelectContent() {
   const { message } = App.useApp();
   const router = useRouter();
   const searchParams = useSearchParams();
-  const token = searchParams.get('token');
+  const session = searchParams.get('session');
   const [selectedPageId, setSelectedPageId] = useState<string | null>(null);
   const [isMounted, setIsMounted] = useState(false);
 
   useEffect(() => {
     setIsMounted(true);
-    console.log('[InstagramSelect] Component mounted. Token:', token);
-  }, [token]);
+    console.log('[InstagramSelect] Component mounted. Session:', session);
+  }, [session]);
+
+  useEffect(() => {
+    console.log('========== CALLBACK ==========')
+    console.log('CURRENT URL:', window.location.href)
+    console.log('QUERY:', window.location.search)
+    const params = new URLSearchParams(window.location.search)
+    console.log('CODE:', params.get('code'))
+    console.log('STATE:', params.get('state'))
+    console.log('TOKEN:', params.get('token'))
+    console.log('SESSION:', params.get('session'))
+    console.log('================================')
+  }, []);
+
+  const getErrorMessage = (err: any) => {
+    if (!err) return null;
+    const responseData = err.response?.data;
+    if (responseData?.error === 'session_expired' || responseData?.message?.includes('expired')) {
+      return 'Your OAuth connection session has expired. Please go back and reconnect your account.';
+    }
+    if (responseData?.error === 'access_denied' || responseData?.message?.includes('denied') || searchParams.get('error') === 'access_denied') {
+      return 'Access was denied. Please make sure to approve all permissions in the Meta (Facebook) popup.';
+    }
+    if (responseData?.error === 'meta_api_failure' || responseData?.message?.includes('Meta')) {
+      return 'Meta API Error: Unable to fetch your business pages from Facebook. Please try again.';
+    }
+    return responseData?.message || err.message || 'An unexpected error occurred. Please try again.';
+  };
 
   // 1. Fetch available pages
   const { data, isLoading, error } = useQuery<AvailablePagesResponse>({
-    queryKey: ['available-pages', token],
+    queryKey: ['available-pages', session],
     queryFn: async () => {
-      if (!token) throw new Error('No token provided');
-      const { data } = await axios.get(`${API}/instagram/available-pages?token=${token}`, {
+      if (!session) throw new Error('No session provided');
+      const url = `${API}/instagram/available-pages?session=${session}`;
+      console.log('REQUEST URL:', url);
+      const response = await axios.get(url, {
         headers: { Authorization: `Bearer mock_token` },
       });
-      return data;
+      console.log('RESPONSE:', response);
+      return response.data;
     },
-    enabled: !!token && isMounted,
+    enabled: !!session && isMounted,
   });
 
   // 2. Mutation to save selected account
   const selectMutation = useMutation({
     mutationFn: async (page: FacebookPage) => {
-      const { data } = await axios.post(
-        `${API}/instagram/select-account`,
+      const url = `${API}/instagram/select-account`;
+      console.log('REQUEST URL:', url);
+      const response = await axios.post(
+        url,
         {
           pageId: page.id,
           pageAccessToken: page.access_token,
@@ -84,31 +116,42 @@ function SelectContent() {
           headers: { Authorization: `Bearer mock_token` },
         }
       );
-      return data;
+      console.log('RESPONSE:', response);
+      return response.data;
     },
     onSuccess: () => {
       message.success('Account connected successfully!');
-      // Redirect to /integrations with connected=true so the page shows a success banner
-      // and immediately refetches the accounts list.
-      router.push('/integrations?connected=true');
+      const redirectUrl = '/integrations?connected=true';
+      console.log('REDIRECTING:', redirectUrl);
+      router.push(redirectUrl);
     },
     onError: (err: any) => {
-      const errorMsg = err.response?.data?.message || err.message || 'Failed to connect account';
+      const errorMsg = getErrorMessage(err) || 'Failed to connect account';
       message.error(errorMsg);
     },
   });
 
   if (!isMounted) return null;
 
-  if (!token) {
+  if (!session || searchParams.get('error') === 'access_denied') {
+    const isDenied = searchParams.get('error') === 'access_denied';
     return (
       <div className="min-h-screen flex items-center justify-center p-4">
         <Alert
           type="error"
-          title="Invalid Session"
-          description="The Instagram connection session has expired or is invalid. Please try connecting again."
+          showIcon
+          title={isDenied ? "Access Denied" : "Invalid Session"}
+          description={
+            isDenied 
+              ? "You denied the required permissions in the Facebook popup. Please try again and approve all request permissions."
+              : "The Instagram connection session has expired or is invalid. Please try connecting again."
+          }
+          className="max-w-md w-full rounded-2xl shadow-md p-6"
           action={
-            <Button type="primary" onClick={() => router.push('/integrations')}>
+            <Button type="primary" danger onClick={() => {
+              console.log('REDIRECTING:', '/integrations');
+              router.push('/integrations');
+            }}>
               Back to Integrations
             </Button>
           }
@@ -145,8 +188,8 @@ function SelectContent() {
           <Alert
             type="error"
             showIcon
-            title="Error fetching pages"
-            description={(error as any).message || "We couldn't retrieve your Facebook pages. Please ensure you've granted all necessary permissions."}
+            title="Instagram Connection Error"
+            description={getErrorMessage(error)}
             className="rounded-2xl"
           />
         ) : (!data?.pages || data.pages.length === 0) ? (

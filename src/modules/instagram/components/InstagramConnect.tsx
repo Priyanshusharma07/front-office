@@ -30,29 +30,54 @@ interface InstagramAccount {
 const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
 
 async function fetchAccounts(): Promise<InstagramAccount[]> {
-  const { data } = await axios.get(`${API}/instagram/accounts`, {
+  const url = `${API}/instagram/accounts`;
+  console.log('REQUEST URL:', url);
+  const response = await axios.get(url, {
     headers: { Authorization: `Bearer mock_token` },
   });
-  return Array.isArray(data) ? data : [];
+  console.log('RESPONSE:', response);
+  return Array.isArray(response.data) ? response.data : [];
 }
 
 
 async function disconnectAccount(id: string): Promise<void> {
-  await axios.delete(`${API}/instagram/accounts/${id}`, {
+  const url = `${API}/instagram/accounts/${id}`;
+  console.log('REQUEST URL:', url);
+  const response = await axios.delete(url, {
     headers: { Authorization: `Bearer mock_token` },
   });
+  console.log('RESPONSE:', response);
 }
 
 async function verifySubscription(id: string): Promise<any> {
-  const { data } = await axios.get(`${API}/instagram/verify-subscription/${id}`, {
+  const url = `${API}/instagram/verify-subscription/${id}`;
+  console.log('REQUEST URL:', url);
+  const response = await axios.get(url, {
     headers: { Authorization: `Bearer mock_token` },
   });
-  return data;
+  console.log('RESPONSE:', response);
+  return response.data;
 }
 
 /* ─── redirect to backend OAuth ──────────────────────── */
-function startConnect() {
-  window.location.href = `${API}/instagram/connect`;
+const API_URL = API;
+
+const connectInstagram = async () => {
+  console.log('========== INSTAGRAM CONNECT ==========')
+  console.log('BUTTON CLICKED')
+  console.log('API_URL:', `${API_URL}/instagram/connect`)
+  try {
+    const response = await axios.get(`${API_URL}/instagram/connect`)
+    console.log('RESPONSE:', response)
+    console.log('FINAL_URL:', response?.request?.responseURL)
+    const finalUrl = response?.request?.responseURL || `${API_URL}/instagram/connect`;
+    window.location.href = finalUrl;
+  }
+  catch(error){
+    console.log('CONNECT ERROR:', error)
+    window.location.href = `${API_URL}/instagram/connect`;
+  }
+  console.log('=======================================')
 }
 
 /* ═══════════════════════════════════════════════════════
@@ -222,7 +247,7 @@ function EmptyState() {
         type="primary"
         size="large"
         icon={<PlusOutlined />}
-        onClick={startConnect}
+        onClick={connectInstagram}
         style={{ background: 'linear-gradient(135deg, #833ab4, #fd1d1d, #fcb045)', border: 'none' }}
         className="shadow-lg px-8"
       >
@@ -254,6 +279,15 @@ export default function InstagramConnect() {
     retry: 1,
     staleTime: 30_000,
   });
+
+  // Phase 5 logs
+  useEffect(() => {
+    if (!isLoading) {
+      console.log('RESPONSE:', accounts);
+      console.log('MAPPED STATE:', accounts.map(acc => ({ id: acc.id, username: acc.username, isSubscribed: acc.isSubscribed })));
+      console.log('RENDERED UI STATE:', accounts.length > 0 ? 'Connected Accounts List' : 'No Instagram account connected');
+    }
+  }, [accounts, isLoading]);
 
   const disconnectMutation = useMutation({
     mutationFn: disconnectAccount,
@@ -313,7 +347,7 @@ export default function InstagramConnect() {
           type="primary"
           size="large"
           icon={<PlusOutlined />}
-          onClick={startConnect}
+          onClick={connectInstagram}
           style={{ background: 'linear-gradient(135deg, #833ab4, #fd1d1d, #fcb045)', border: 'none' }}
           className="shadow-md flex-shrink-0"
         >
@@ -365,7 +399,16 @@ export default function InstagramConnect() {
           className="rounded-2xl"
         />
       ) : accounts.length === 0 ? (
-        <EmptyState />
+        <div className="space-y-6">
+          <Alert
+            type="info"
+            showIcon
+            title="No Instagram account connected"
+            description="Link your Instagram Business account to enable automatic private replies."
+            className="rounded-2xl shadow-sm"
+          />
+          <EmptyState />
+        </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {accounts.map((account) => (
@@ -381,7 +424,7 @@ export default function InstagramConnect() {
 
           {/* ── Add another ── */}
           <button
-            onClick={startConnect}
+            onClick={connectInstagram}
             className="rounded-2xl border-2 border-dashed border-gray-200 hover:border-indigo-300 hover:bg-indigo-50 transition-all duration-200 flex flex-col items-center justify-center gap-3 p-8 text-gray-400 hover:text-indigo-500 cursor-pointer min-h-[200px]"
           >
             <div className="w-12 h-12 rounded-full border-2 border-current flex items-center justify-center">
