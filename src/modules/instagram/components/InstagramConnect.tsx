@@ -52,7 +52,7 @@ const TRIGGER_OPTIONS = [
   { key: 'posts', label: 'Posts', icon: '📸' },
 ];
 
-const triggerFieldMap: Record<string, string> = {
+const triggerMap: Record<string, string> = {
   comments: 'feed',
   posts: 'feed',
   messages: 'messages',
@@ -410,7 +410,7 @@ function AutomationTriggersPanel({
         const body = {
           instagramBusinessId,
           triggerType,
-          webhookField: triggerFieldMap[triggerType],
+          webhookField: triggerMap[triggerType],
           automationId: `auto_${triggerType}_${Date.now()}`,
         };
         console.log('API REQUEST:', `${API_URL}/instagram/save-trigger`, body);
@@ -497,9 +497,9 @@ function AutomationStatusCard({
         setStatus(data);
         
         console.log('SELECTED_TRIGGER:', data?.triggerType);
-        console.log('MAPPED_FIELD:', data?.webhookField);
+        console.log('MAPPED_WEBHOOK_FIELD:', data?.webhookField);
         console.log('AUTOMATION_STATUS:', data?.automationActive);
-        console.log('WEBHOOK_STATUS:', data?.webhookSubscribed);
+        console.log('SUBSCRIPTION_STATUS:', data?.webhookSubscribed);
       } catch (err) {
         console.error('Failed to load automation status:', err);
       } finally {
@@ -520,11 +520,10 @@ function AutomationStatusCard({
   }
 
   const checklist = [
-    { label: 'Instagram Connected', active: status?.connected },
-    { label: 'Webhook Active', active: status?.webhookSubscribed },
-    { label: 'Trigger Configured', active: status?.triggerConfigured },
-    { label: 'Automation Active', active: status?.automationActive },
-    { label: 'Active Webhook Fields', active: status?.webhookSubscribed },
+    { label: 'Account Connected', active: status?.connected, failedLabel: 'Account Disconnected' },
+    { label: 'Webhook Subscribed', active: status?.webhookSubscribed, failedLabel: 'Webhook Failed' },
+    { label: 'Trigger Saved', active: status?.triggerConfigured, failedLabel: 'Trigger Failed' },
+    { label: 'Automation Active', active: status?.automationActive, failedLabel: 'Automation Failed' },
   ];
 
   return (
@@ -540,15 +539,17 @@ function AutomationStatusCard({
       <div className="rounded-2xl border border-gray-100 bg-gray-50/50 p-6 space-y-3">
         {checklist.map((item, idx) => (
           <div key={idx} className="flex items-center justify-between py-2 border-b border-gray-100 last:border-0">
-            <span className="text-gray-700 font-medium">{item.label}</span>
+            <span className="text-gray-700 font-medium">
+              {item.active ? `✓ ${item.label}` : `✗ ${item.failedLabel}`}
+            </span>
             <div className="flex items-center gap-2">
-              <span className={`text-sm font-semibold ${item.active ? 'text-emerald-600' : 'text-gray-400'}`}>
-                {item.active ? '✓ Active' : '✕ Inactive'}
+              <span className={`text-sm font-semibold ${item.active ? 'text-emerald-600' : 'text-red-500'}`}>
+                {item.active ? 'Active' : 'Failed'}
               </span>
               {item.active ? (
                 <CheckCircleFilled className="text-emerald-500" />
               ) : (
-                <ExclamationCircleFilled className="text-gray-300" />
+                <ExclamationCircleFilled className="text-red-500" />
               )}
             </div>
           </div>
