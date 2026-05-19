@@ -4,7 +4,7 @@ import React, { useEffect, useState } from 'react';
 import {
   Button, Avatar, Tag, Typography, Popconfirm,
   App, Skeleton, Alert, Tooltip, Card, Spin,
-  Checkbox, Divider,
+  Checkbox, Divider, Input,
 } from 'antd';
 import {
   InstagramOutlined, CheckCircleFilled, ExclamationCircleFilled,
@@ -127,65 +127,62 @@ function TriggerConfig({
 }) {
   const { message } = App.useApp();
   const api = useApiClient();
-  const [selected, setSelected] = useState<string[]>(currentTriggers || []);
+  const [replyMessage, setReplyMessage] = useState<string>('');
 
   const saveMutation = useMutation({
     mutationFn: async () => {
-      console.log('API REQUEST:', `${API_URL}/instagram/save-trigger`);
-      return api.post('/instagram/save-trigger', { accountId, triggers: selected, oauthSession });
+      if (!replyMessage.trim()) {
+        throw new Error('Please enter a private reply message.');
+      }
+      const body = {
+        accountId,
+        triggerType: 'comments',
+        replyMessage: replyMessage.trim(),
+        webhookField: triggerMap['comments'],
+        oauthSession
+      };
+      console.log('API REQUEST:', `${API_URL}/instagram/save-trigger`, body);
+      return api.post('/instagram/save-trigger', body);
     },
     onSuccess: () => {
-      console.log('TRIGGER SAVED:', { accountId, triggers: selected });
-      message.success('Automation triggers saved!');
+      message.success('Comment Automation saved!');
       onSaved();
     },
     onError: (err: any) => {
-      message.error(err?.message || 'Failed to save triggers');
+      message.error(err?.message || 'Failed to save automation');
     },
   });
-
-  const toggle = (key: string) =>
-    setSelected((prev) =>
-      prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key]
-    );
 
   return (
     <div className="space-y-4">
       <div>
         <Title level={5} className="!mb-1 flex items-center gap-2">
-          <ThunderboltOutlined className="text-indigo-500" /> Automation Triggers
+          <ThunderboltOutlined className="text-indigo-500" /> Comment Automation
         </Title>
         <Text type="secondary" className="text-sm">
-          Choose which events will trigger an automated private reply.
+          Auto-reply to incoming comments via private DM.
         </Text>
       </div>
-      <div className="grid grid-cols-2 gap-3">
-        {TRIGGER_OPTIONS.map(({ key, label, icon }) => (
-          <div
-            key={key}
-            onClick={() => toggle(key)}
-            className={`flex items-center gap-3 p-3 rounded-xl border-2 cursor-pointer transition-all duration-150
-              ${selected.includes(key)
-                ? 'border-indigo-500 bg-indigo-50'
-                : 'border-gray-100 hover:border-indigo-200'
-              }`}
-          >
-            <Checkbox checked={selected.includes(key)} />
-            <span className="text-base">{icon}</span>
-            <Text className="font-medium text-sm">{label}</Text>
-          </div>
-        ))}
+      <div className="space-y-2">
+        <Text strong>Private Reply Message:</Text>
+        <Input.TextArea
+          rows={3}
+          placeholder="Thanks for reaching out. How can we help?"
+          value={replyMessage}
+          onChange={(e) => setReplyMessage(e.target.value)}
+          className="rounded-xl"
+        />
       </div>
       <Button
         type="primary"
         icon={<SaveOutlined />}
         loading={saveMutation.isPending}
-        disabled={selected.length === 0}
+        disabled={!replyMessage.trim()}
         onClick={() => saveMutation.mutate()}
         className="w-full h-10 rounded-xl"
         style={{ background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', border: 'none' }}
       >
-        Save Triggers
+        Save Automation
       </Button>
     </div>
   );
@@ -378,7 +375,6 @@ interface SelectedAccount {
   pageId: string;
 }
 
-// ── TASK 5: Automation Triggers Onboarding Panel ────
 function AutomationTriggersPanel({
   instagramBusinessId,
   oauthSession,
@@ -390,37 +386,35 @@ function AutomationTriggersPanel({
 }) {
   const { message } = App.useApp();
   const api = useApiClient();
-  const [selected, setSelected] = useState<string[]>([]);
+  const [selected, setSelected] = useState<string[]>(['comments']);
+  const [replyMessage, setReplyMessage] = useState<string>('');
   const [saving, setSaving] = useState(false);
 
-  const toggle = (key: string) =>
-    setSelected((prev) =>
-      prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key]
-    );
-
   const handleSave = async () => {
-    if (selected.length === 0) {
-      message.warning('Please select at least one trigger to configure.');
+    if (!selected.includes('comments')) {
+      message.warning('Please select Comment Received trigger.');
+      return;
+    }
+    if (!replyMessage.trim()) {
+      message.error('Please enter a private reply message.');
       return;
     }
     setSaving(true);
     try {
-      // Loop over and save each selected trigger type
-      for (const triggerType of selected) {
-        const body = {
-          instagramBusinessId,
-          triggerType,
-          webhookField: triggerMap[triggerType],
-          automationId: `auto_${triggerType}_${Date.now()}`,
-        };
-        console.log('API REQUEST:', `${API_URL}/instagram/save-trigger`, body);
-        const res = await api.post('/instagram/save-trigger', body);
-        console.log('TRIGGER SAVED:', res);
-      }
-      message.success('Automation triggers saved successfully!');
+      const body = {
+        instagramBusinessId,
+        triggerType: 'comments',
+        replyMessage: replyMessage.trim(),
+        webhookField: triggerMap['comments'],
+        automationId: `auto_comments_${Date.now()}`,
+      };
+      console.log('API REQUEST:', `${API_URL}/instagram/save-trigger`, body);
+      const res = await api.post('/instagram/save-trigger', body);
+      console.log('TRIGGER SAVED:', res);
+      message.success('Comment Automation saved successfully!');
       onNext();
     } catch (err: any) {
-      message.error(err?.response?.data?.message || 'Failed to save automation triggers.');
+      message.error(err?.response?.data?.message || 'Failed to save automation.');
     } finally {
       setSaving(false);
     }
@@ -430,32 +424,48 @@ function AutomationTriggersPanel({
     <div className="space-y-6">
       <div>
         <Title level={4} className="!mb-1 flex items-center gap-2">
-          <ThunderboltOutlined className="text-indigo-500" /> Configure Automation Triggers
+          <ThunderboltOutlined className="text-indigo-500" /> Comment Automation Card
         </Title>
         <Text type="secondary" className="text-sm">
-          Choose which Instagram events will trigger automated private replies.
+          Set up an automatic private DM reply when someone comments on your posts.
         </Text>
       </div>
 
-      <div className="grid grid-cols-2 gap-4">
-        {TRIGGER_OPTIONS.map(({ key, label, icon }) => (
-          <div
-            key={key}
-            onClick={() => toggle(key)}
-            className={`flex items-center gap-4 p-4 rounded-2xl border-2 cursor-pointer transition-all duration-200 shadow-sm
-              ${selected.includes(key)
-                ? 'border-indigo-500 bg-indigo-50/50'
-                : 'border-gray-100 bg-white hover:border-indigo-200'
-              }`}
-          >
-            <Checkbox checked={selected.includes(key)} />
-            <span className="text-2xl">{icon}</span>
-            <div>
-              <Text className="font-semibold text-sm block">{label}</Text>
-              <Text type="secondary" className="text-xs">Trigger on new {label.toLowerCase()}</Text>
+      <div className="p-4 rounded-2xl border-2 border-indigo-500 bg-indigo-50/50">
+        <Checkbox checked={selected.includes('comments')} onChange={(e) => setSelected(e.target.checked ? ['comments'] : [])}>
+          <span className="font-semibold ml-2">☑ Comment Received</span>
+        </Checkbox>
+      </div>
+
+      <div className="space-y-2">
+        <Text strong>Private Reply Message:</Text>
+        <Input.TextArea
+          rows={4}
+          placeholder="Thanks for reaching out. How can we help?"
+          value={replyMessage}
+          onChange={(e) => setReplyMessage(e.target.value)}
+          className="rounded-xl"
+        />
+      </div>
+
+      <div className="p-4 rounded-xl bg-gray-50 border border-gray-200">
+        <Text strong className="block mb-2">Automation Preview</Text>
+        <div className="space-y-3">
+          <div className="flex gap-2">
+            <Avatar size="small" icon={<InstagramOutlined />} />
+            <div className="bg-white p-2 rounded-lg text-sm border border-gray-100 shadow-sm w-full">
+              <Text type="secondary" className="block text-xs mb-1">Incoming comment:</Text>
+              "Hello"
             </div>
           </div>
-        ))}
+          <div className="flex gap-2 flex-row-reverse">
+            <Avatar size="small" className="bg-indigo-500 text-white">You</Avatar>
+            <div className="bg-indigo-50 p-2 rounded-lg text-sm border border-indigo-100 shadow-sm w-full text-right">
+              <Text type="secondary" className="block text-xs mb-1">Private Reply:</Text>
+              "{replyMessage || 'Thanks for reaching out. How can we help?'}"
+            </div>
+          </div>
+        </div>
       </div>
 
       <Button
@@ -463,18 +473,17 @@ function AutomationTriggersPanel({
         size="large"
         icon={<SaveOutlined />}
         loading={saving}
-        disabled={selected.length === 0}
+        disabled={!replyMessage.trim()}
         onClick={handleSave}
         className="w-full h-12 rounded-xl font-medium shadow-md"
         style={{ background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', border: 'none' }}
       >
-        Save and Enable Automation
+        Save Automation
       </Button>
     </div>
   );
 }
 
-// ── TASK 6: Live Automation Status Check Card ────────
 function AutomationStatusCard({
   accountId,
   onFinished,
@@ -489,17 +498,17 @@ function AutomationStatusCard({
   useEffect(() => {
     async function checkStatus() {
       try {
-        console.log('API REQUEST:', `${API_URL}/instagram/automation-status/${accountId}`);
-        const res = await api.get<any>(`/instagram/automation-status/${accountId}`);
+        console.log('API REQUEST:', `${API_URL}/instagram/private-reply-status/${accountId}`);
+        const res = await api.get<any>(`/instagram/private-reply-status/${accountId}`);
         console.log('AUTOMATION STATUS:', res);
         
         const data = res?.data || res;
         setStatus(data);
         
-        console.log('SELECTED_TRIGGER:', data?.triggerType);
-        console.log('MAPPED_WEBHOOK_FIELD:', data?.webhookField);
+        console.log('COMMENT_TRIGGER:', data?.triggerType);
+        console.log('PRIVATE_REPLY_MESSAGE:', data?.replyMessage);
         console.log('AUTOMATION_STATUS:', data?.automationActive);
-        console.log('SUBSCRIPTION_STATUS:', data?.webhookSubscribed);
+        console.log('PRIVATE_REPLY_STATUS:', data?.privateReplyEnabled);
       } catch (err) {
         console.error('Failed to load automation status:', err);
       } finally {
@@ -520,10 +529,10 @@ function AutomationStatusCard({
   }
 
   const checklist = [
-    { label: 'Account Connected', active: status?.connected, failedLabel: 'Account Disconnected' },
-    { label: 'Webhook Subscribed', active: status?.webhookSubscribed, failedLabel: 'Webhook Failed' },
-    { label: 'Trigger Saved', active: status?.triggerConfigured, failedLabel: 'Trigger Failed' },
-    { label: 'Automation Active', active: status?.automationActive, failedLabel: 'Automation Failed' },
+    { label: 'Instagram Connected', active: status?.connected, failedLabel: 'Account Disconnected' },
+    { label: 'Webhook Active', active: status?.webhookSubscribed, failedLabel: 'Webhook Failed' },
+    { label: 'Comment Automation Enabled', active: status?.automationActive, failedLabel: 'Automation Disabled' },
+    { label: 'Private Reply Enabled', active: status?.privateReplyEnabled, failedLabel: 'Private Reply Send Failure' },
   ];
 
   return (
@@ -556,15 +565,13 @@ function AutomationStatusCard({
         ))}
       </div>
 
-      <div className="rounded-xl border border-gray-200 bg-gray-50 p-4 mt-6 text-xs font-mono text-gray-600">
-        <div className="font-bold text-gray-800 mb-2">Developer Diagnostics</div>
-        <div>Instagram Account: {status?.username || 'N/A'}</div>
-        <div>Business ID: {status?.instagramBusinessId || 'N/A'}</div>
-        <div>Selected Trigger: {status?.triggerType || 'N/A'}</div>
-        <div>Mapped Webhook Field: {status?.webhookField || 'N/A'}</div>
-        <div>Webhook Status: {status?.webhookSubscribed ? 'Active' : 'Inactive'}</div>
-        <div>Automation Status: {status?.automationActive ? 'Active' : 'Inactive'}</div>
-      </div>
+      {status?.lastReplyStatus && (
+        <div className="rounded-xl border border-gray-200 bg-gray-50 p-4 mt-6 text-xs font-mono text-gray-600">
+          <div className="font-bold text-gray-800 mb-2">Automation Logs</div>
+          <div>Last Reply Status: {status?.lastReplyStatus}</div>
+          <div>Last Message ID: {status?.lastMessageId || 'N/A'}</div>
+        </div>
+      )}
 
       <Button
         type="primary"
