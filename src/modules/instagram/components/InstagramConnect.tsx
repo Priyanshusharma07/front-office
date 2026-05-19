@@ -52,6 +52,13 @@ const TRIGGER_OPTIONS = [
   { key: 'posts', label: 'Posts', icon: '📸' },
 ];
 
+const triggerFieldMap: Record<string, string> = {
+  comments: 'feed',
+  posts: 'feed',
+  messages: 'messages',
+  mentions: 'mention',
+};
+
 const STEPS = [
   { n: 1, label: 'Connect Facebook' },
   { n: 2, label: 'Select Page' },
@@ -403,6 +410,7 @@ function AutomationTriggersPanel({
         const body = {
           instagramBusinessId,
           triggerType,
+          webhookField: triggerFieldMap[triggerType],
           automationId: `auto_${triggerType}_${Date.now()}`,
         };
         console.log('API REQUEST:', `${API_URL}/instagram/save-trigger`, body);
@@ -484,7 +492,14 @@ function AutomationStatusCard({
         console.log('API REQUEST:', `${API_URL}/instagram/automation-status/${accountId}`);
         const res = await api.get<any>(`/instagram/automation-status/${accountId}`);
         console.log('AUTOMATION STATUS:', res);
-        setStatus(res?.data || res);
+        
+        const data = res?.data || res;
+        setStatus(data);
+        
+        console.log('SELECTED_TRIGGER:', data?.triggerType);
+        console.log('MAPPED_FIELD:', data?.webhookField);
+        console.log('AUTOMATION_STATUS:', data?.automationActive);
+        console.log('WEBHOOK_STATUS:', data?.webhookSubscribed);
       } catch (err) {
         console.error('Failed to load automation status:', err);
       } finally {
@@ -509,6 +524,7 @@ function AutomationStatusCard({
     { label: 'Webhook Active', active: status?.webhookSubscribed },
     { label: 'Trigger Configured', active: status?.triggerConfigured },
     { label: 'Automation Active', active: status?.automationActive },
+    { label: 'Active Webhook Fields', active: status?.webhookSubscribed },
   ];
 
   return (
@@ -537,6 +553,16 @@ function AutomationStatusCard({
             </div>
           </div>
         ))}
+      </div>
+
+      <div className="rounded-xl border border-gray-200 bg-gray-50 p-4 mt-6 text-xs font-mono text-gray-600">
+        <div className="font-bold text-gray-800 mb-2">Developer Diagnostics</div>
+        <div>Instagram Account: {status?.username || 'N/A'}</div>
+        <div>Business ID: {status?.instagramBusinessId || 'N/A'}</div>
+        <div>Selected Trigger: {status?.triggerType || 'N/A'}</div>
+        <div>Mapped Webhook Field: {status?.webhookField || 'N/A'}</div>
+        <div>Webhook Status: {status?.webhookSubscribed ? 'Active' : 'Inactive'}</div>
+        <div>Automation Status: {status?.automationActive ? 'Active' : 'Inactive'}</div>
       </div>
 
       <Button
