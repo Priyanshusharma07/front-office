@@ -28,6 +28,7 @@ interface InstagramAccount {
   tokenExpiresAt?: string;
   createdAt: string;
   triggers?: string[];
+  instagramBusinessId?: string;
 }
 
 interface FacebookPage {
@@ -116,11 +117,13 @@ function FacebookPageCard({
 ═══════════════════════════════════════════════════════ */
 function TriggerConfig({
   accountId,
+  instagramBusinessId,
   currentTriggers,
   oauthSession,
   onSaved,
 }: {
   accountId: string;
+  instagramBusinessId?: string;
   currentTriggers?: string[];
   oauthSession?: string;
   onSaved: () => void;
@@ -135,10 +138,11 @@ function TriggerConfig({
         throw new Error('Please enter a private reply message.');
       }
       const body = {
-        accountId,
+        instagramBusinessId: instagramBusinessId || accountId,
         triggerType: 'comments',
         replyMessage: replyMessage.trim(),
-        webhookField: triggerMap['comments'],
+        enabled: true,
+        automationId: `auto_comments_${Date.now()}`,
         oauthSession
       };
       console.log('API REQUEST:', `${API_URL}/instagram/save-trigger`, body);
@@ -283,6 +287,7 @@ function AccountCard({
         {showTriggers && (
           <TriggerConfig
             accountId={account.id}
+            instagramBusinessId={account.instagramBusinessId}
             currentTriggers={account.triggers}
             onSaved={() => { setShowTriggers(false); onRefetch(); }}
           />
@@ -405,7 +410,7 @@ function AutomationTriggersPanel({
         instagramBusinessId,
         triggerType: 'comments',
         replyMessage: replyMessage.trim(),
-        webhookField: triggerMap['comments'],
+        enabled: true,
         automationId: `auto_comments_${Date.now()}`,
       };
       console.log('API REQUEST:', `${API_URL}/instagram/save-trigger`, body);
@@ -455,7 +460,7 @@ function AutomationTriggersPanel({
             <Avatar size="small" icon={<InstagramOutlined />} />
             <div className="bg-white p-2 rounded-lg text-sm border border-gray-100 shadow-sm w-full">
               <Text type="secondary" className="block text-xs mb-1">Incoming comment:</Text>
-              "Hello"
+              "Hii"
             </div>
           </div>
           <div className="flex gap-2 flex-row-reverse">
@@ -505,10 +510,11 @@ function AutomationStatusCard({
         const data = res?.data || res;
         setStatus(data);
         
-        console.log('COMMENT_TRIGGER:', data?.triggerType);
+        console.log('INSTAGRAM_BUSINESS_ID:', data?.instagramBusinessId);
+        console.log('TRIGGER_TYPE:', data?.triggerType || 'comments');
+        console.log('AUTOMATION_ID:', data?.automationId);
         console.log('PRIVATE_REPLY_MESSAGE:', data?.replyMessage);
         console.log('AUTOMATION_STATUS:', data?.automationActive);
-        console.log('PRIVATE_REPLY_STATUS:', data?.privateReplyEnabled);
       } catch (err) {
         console.error('Failed to load automation status:', err);
       } finally {
@@ -529,9 +535,9 @@ function AutomationStatusCard({
   }
 
   const checklist = [
-    { label: 'Instagram Connected', active: status?.connected, failedLabel: 'Account Disconnected' },
+    { label: 'Instagram Connected', active: status?.connected, failedLabel: 'Instagram Disconnected' },
     { label: 'Webhook Active', active: status?.webhookSubscribed, failedLabel: 'Webhook Failed' },
-    { label: 'Comment Automation Enabled', active: status?.automationActive, failedLabel: 'Automation Disabled' },
+    { label: 'Automation Saved', active: status?.automationActive, failedLabel: 'Automation Failed' },
     { label: 'Private Reply Enabled', active: status?.privateReplyEnabled, failedLabel: 'Private Reply Send Failure' },
   ];
 
@@ -563,6 +569,15 @@ function AutomationStatusCard({
             </div>
           </div>
         ))}
+      </div>
+
+      <div className="rounded-xl border border-gray-200 bg-gray-50 p-4 mt-6 text-xs font-mono text-gray-600">
+        <div className="font-bold text-gray-800 mb-2">Developer Diagnostics</div>
+        <div>Instagram Business ID: {status?.instagramBusinessId || 'N/A'}</div>
+        <div>Trigger Type: {status?.triggerType || 'comments'}</div>
+        <div>Automation ID: {status?.automationId || 'N/A'}</div>
+        <div>Reply Message: {status?.replyMessage || 'N/A'}</div>
+        <div>Private Reply Status: {status?.privateReplyEnabled ? 'Active' : 'Inactive'}</div>
       </div>
 
       {status?.lastReplyStatus && (
