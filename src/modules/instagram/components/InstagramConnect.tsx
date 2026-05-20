@@ -115,7 +115,7 @@ function FacebookPageCard({
 /* ═══════════════════════════════════════════════════════
    TriggerConfig
 ═══════════════════════════════════════════════════════ */
-function TriggerConfig({
+export function TriggerConfig({
   accountId,
   instagramBusinessId,
   currentTriggers,
@@ -380,7 +380,7 @@ interface SelectedAccount {
   pageId: string;
 }
 
-function AutomationTriggersPanel({
+export function AutomationTriggersPanel({
   instagramBusinessId,
   oauthSession,
   onNext,
@@ -489,7 +489,7 @@ function AutomationTriggersPanel({
   );
 }
 
-function AutomationStatusCard({
+export function AutomationStatusCard({
   accountId,
   onFinished,
 }: {
