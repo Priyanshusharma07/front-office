@@ -1,6 +1,7 @@
 import { Suspense } from 'react';
 import InstagramCallback from '@/modules/instagram/components/InstagramCallback';
-import InstagramStartScreen from '@/components/instagram-connector/InstagramStartScreen';
+import InstagramPageContent from '@/components/instagram-connector/InstagramPageContent';
+import { App } from 'antd';
 
 export const dynamic = 'force-dynamic';
 
@@ -13,17 +14,20 @@ export default async function InstagramPage({
   
   const params = await searchParams;
   
-  const isCallback = params.success || params.error || params.session || params.code;
+  // Detect old style callback logic to support backward compatibility
+  const isOldCallback = params.success || params.error || params.session || params.code;
   
-  if (isCallback) {
+  if (isOldCallback && !params.status) {
     console.log('CALLBACK_DETECTED');
     return <InstagramCallback />;
   }
 
   console.log('CONNECT_SCREEN_RENDERED');
   return (
-    <Suspense fallback={<div className="p-12 text-center">Loading...</div>}>
-      <InstagramStartScreen />
-    </Suspense>
+    <App suppressHydrationWarning>
+      <Suspense fallback={<div className="p-12 text-center">Loading...</div>}>
+        <InstagramPageContent />
+      </Suspense>
+    </App>
   );
 }

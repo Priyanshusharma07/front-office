@@ -1,14 +1,14 @@
 'use client';
 
-import React, { useState, useEffect, Suspense } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { Card, Spin, Avatar, Tag, Typography, Button, message, App } from 'antd';
-import { InstagramOutlined, CheckCircleFilled, CloseCircleFilled, SettingOutlined, LockOutlined } from '@ant-design/icons';
+import { InstagramOutlined, CheckCircleFilled, CloseCircleFilled, SettingOutlined, LockOutlined, ExclamationCircleFilled, ReloadOutlined } from '@ant-design/icons';
 import { useApiClient } from '@/services/useApiClient';
 import { AutomationTriggersPanel } from '@/modules/instagram/components/InstagramConnect';
+import InstagramStartScreen from './InstagramStartScreen';
 
 const { Title, Text, Paragraph } = Typography;
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
 
 interface InstagramAccount {
   id: string;
@@ -23,26 +23,24 @@ interface AutomationStatus {
   automationActive: boolean;
 }
 
-function InstagramIntegrationContent() {
+export default function InstagramPageContent() {
   const searchParams = useSearchParams();
   const api = useApiClient();
   
   const statusParam = searchParams.get('status');
+  const messageParam = searchParams.get('message');
+  const accountIdParam = searchParams.get('accountId');
   
   const [loading, setLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
   const [account, setAccount] = useState<InstagramAccount | null>(null);
   const [automationStatus, setAutomationStatus] = useState<AutomationStatus | null>(null);
   const [showConfig, setShowConfig] = useState<boolean>(false);
 
   useEffect(() => {
-    // TASK 9: Remove Meta hash
+    // TASK 4: Remove Meta hash
     if (typeof window !== 'undefined') {
-      if (
-        window.location.hash === '#*=*' || 
-        window.location.hash === '#_=_' || 
-        window.location.hash.includes('_=_') || 
-        window.location.hash.includes('*=*')
-      ) {
+      if (window.location.hash === '#*=*') {
         history.replaceState(
           null,
           '',
@@ -52,48 +50,58 @@ function InstagramIntegrationContent() {
     }
 
     if (statusParam === 'success') {
-      fetchInstagramDetails();
+      // TASK 5: Add log for INSTAGRAM_CALLBACK_RECEIVED
+      console.log('INSTAGRAM_CALLBACK_RECEIVED');
+      handleSuccessCallback();
+    } else if (statusParam === 'error') {
+      setError(messageParam || 'An unknown error occurred during Instagram login.');
+      setLoading(false);
     } else {
       setLoading(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [statusParam]);
+  }, [statusParam, messageParam, accountIdParam]);
 
-  const handleConnectClick = () => {
-    // TASK 10: Log connect action and oauth start
-    console.log('INSTAGRAM_CONNECT_CLICKED');
-    console.log('OAUTH_STARTED');
-    
-    // TASK 3: Button action redirect
-    window.location.href = `${API_URL}/instagram/connect-instagram`;
-  };
-
-  const fetchInstagramDetails = async () => {
+  const handleSuccessCallback = async () => {
     setLoading(true);
-    // TASK 10: Log fetch start
+    setError(null);
+    
+    // TASK 5: Add log for ACCOUNT_FETCH_STARTED
     console.log('ACCOUNT_FETCH_STARTED');
+    
     try {
-      // TASK 4: Call GET /instagram/accounts
+      // 1. Call GET /instagram/accounts
       const result = await api.get('/instagram/accounts');
       const accountsList = Array.isArray(result) ? result : (result?.data || []);
 
       if (accountsList.length > 0) {
         const connectedAccount = accountsList[0];
-        // TASK 10: Log fetch success
+        // TASK 5: Add log for ACCOUNT_FETCH_SUCCESS
         console.log('ACCOUNT_FETCH_SUCCESS', connectedAccount);
         setAccount(connectedAccount);
-        
-        // TASK 6: Call GET /instagram/automation-status/:id
+
+        // 2. Call POST /instagram/connect-account
+        console.log('AUTOMATION_SETUP_STARTED');
+        try {
+          await api.post('/instagram/connect-account', {
+            accountId: accountIdParam || connectedAccount.id,
+            instagramBusinessId: connectedAccount.instagramBusinessId
+          });
+        } catch (postErr) {
+          console.warn('POST /instagram/connect-account call finished with warning:', postErr);
+        }
+
+        // 3. Call GET /instagram/automation-status/:id
         await fetchAutomationStatus(connectedAccount.id);
 
         // TASK 8: Automatically open Configure Automation screen
         setShowConfig(true);
       } else {
-        message.warning('No connected Instagram account found.');
+        setError('No connected Instagram accounts were found.');
       }
-    } catch (error) {
-      console.error('Failed to fetch Instagram accounts:', error);
-      message.error('Failed to load connected accounts.');
+    } catch (err: any) {
+      console.error('Failed to handle Instagram callback details:', err);
+      setError(err?.message || 'Failed to complete Instagram connection setup.');
     } finally {
       setLoading(false);
     }
@@ -102,7 +110,6 @@ function InstagramIntegrationContent() {
   const fetchAutomationStatus = async (accountId: string) => {
     try {
       const statusRes: any = await api.get(`/instagram/automation-status/${accountId}`);
-      // TASK 10: Log automation status loaded
       console.log('AUTOMATION_STATUS_LOADED', statusRes);
 
       const data = statusRes?.data || statusRes;
@@ -113,7 +120,7 @@ function InstagramIntegrationContent() {
       });
     } catch (error) {
       console.error('Failed to load automation status:', error);
-      // Fallback defaults
+      // Fallback values
       setAutomationStatus({
         webhookActive: true,
         privateReplyEnabled: true,
@@ -133,64 +140,48 @@ function InstagramIntegrationContent() {
     return (
       <div className="flex flex-col items-center justify-center min-h-[400px] space-y-4">
         <Spin size="large" />
-        <Text type="secondary">Processing connection...</Text>
+        <Text type="secondary">Processing Instagram connection callback...</Text>
       </div>
     );
   }
 
-  // TASK 2: Initial Connection Screen
-  if (statusParam !== 'success') {
+  // Handle status="error"
+  if (error) {
     return (
-      <div className="max-w-4xl mx-auto space-y-8">
-        <div className="flex items-center gap-4">
-          <div className="w-12 h-12 rounded-xl flex items-center justify-center shadow-lg"
-            style={{ background: 'linear-gradient(135deg, #833ab4, #fd1d1d, #fcb045)' }}>
-            <InstagramOutlined className="text-2xl text-white" />
-          </div>
-          <div>
-            <Title level={3} className="!mb-0">Connect Instagram</Title>
-            <Text type="secondary" className="text-sm">
-              Connect your Instagram professional account and automate comments, messages and private replies.
+      <div className="max-w-md mx-auto py-12">
+        <Card className="rounded-2xl border-red-100 bg-red-50/30 shadow-sm text-center py-12 space-y-4">
+          <ExclamationCircleFilled className="text-5xl text-red-500" />
+          <div className="space-y-1">
+            <Title level={4} className="!mb-0 text-red-600">Connection Failed</Title>
+            <Text type="secondary" className="text-sm block px-4">
+              {error}
             </Text>
           </div>
-        </div>
-
-        <Card className="rounded-3xl border-2 border-dashed border-indigo-100 bg-gradient-to-b from-indigo-50/30 to-white p-12 text-center space-y-6">
-          <div className="flex justify-center">
-            <div className="w-20 h-20 rounded-full flex items-center justify-center shadow-md bg-white border border-gray-100">
-              <InstagramOutlined className="text-4xl text-pink-600 animate-pulse" />
-            </div>
-          </div>
-          <div className="space-y-2">
-            <Title level={4}>Integrate Instagram-Native Automations</Title>
-            <Paragraph type="secondary" className="max-w-md mx-auto">
-              Boost user engagement instantly by triggering comment auto-responses and direct message flows.
-            </Paragraph>
-          </div>
           <Button 
-            type="primary" 
-            size="large" 
-            icon={<LockOutlined />}
-            onClick={handleConnectClick} 
-            className="h-12 px-8 text-base font-semibold rounded-xl shadow-md border-none"
-            style={{ background: 'linear-gradient(135deg, #833ab4, #fd1d1d, #fcb045)' }}
+            type="primary"
+            icon={<ReloadOutlined />} 
+            onClick={() => {
+              window.location.href = '/instagram';
+            }} 
+            className="rounded-xl mt-4 bg-red-600 hover:bg-red-700 border-none"
           >
-            Connect Instagram
+            Try Again
           </Button>
         </Card>
       </div>
     );
   }
 
-  return (
-    <div className="max-w-4xl mx-auto space-y-6">
-      <div className="flex items-center gap-3 mb-6">
-        <InstagramOutlined className="text-3xl text-pink-600" />
-        <Title level={3} className="!mb-0">Instagram Integration</Title>
-      </div>
+  // Handle status="success"
+  if (statusParam === 'success' && account) {
+    return (
+      <div className="max-w-4xl mx-auto space-y-6">
+        <div className="flex items-center gap-3 mb-6">
+          <InstagramOutlined className="text-3xl text-pink-600" />
+          <Title level={3} className="!mb-0">Instagram Integration</Title>
+        </div>
 
-      {/* TASK 5: Render connected account details */}
-      {account && (
+        {/* TASK 5: Render username, profile picture, connected status */}
         <Card className="rounded-2xl border-gray-200 shadow-sm p-6 bg-gradient-to-r from-purple-50/50 via-white to-pink-50/50">
           <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
             <div className="flex items-center gap-4">
@@ -209,7 +200,7 @@ function InstagramIntegrationContent() {
               </div>
             </div>
             
-            {/* TASK 7: Render automation statuses (Webhook, Private Reply, Automation) */}
+            {/* TASK 7: Render Webhook, Private Reply, Automation statuses */}
             {automationStatus && (
               <div className="grid grid-cols-1 gap-2 min-w-[200px]">
                 <div className="flex items-center justify-between px-3 py-1.5 bg-white border border-gray-100 rounded-xl">
@@ -240,39 +231,28 @@ function InstagramIntegrationContent() {
             )}
           </div>
         </Card>
-      )}
 
-      {/* TASK 8: Automatically open/render Configure Automation screen */}
-      {showConfig && account && (
-        <Card 
-          className="rounded-2xl border-gray-200 shadow-sm p-6"
-          title={
-            <span className="flex items-center gap-2 text-indigo-600">
-              <SettingOutlined /> Configure Comment Automation
-            </span>
-          }
-        >
-          <AutomationTriggersPanel 
-            instagramBusinessId={account.instagramBusinessId}
-            oauthSession=""
-            onNext={handleTriggersSaved}
-          />
-        </Card>
-      )}
-    </div>
-  );
-}
+        {/* TASK 8: Automatically open/render Configure Automation triggers screen */}
+        {showConfig && (
+          <Card 
+            className="rounded-2xl border-gray-200 shadow-sm p-6"
+            title={
+              <span className="flex items-center gap-2 text-indigo-600">
+                <SettingOutlined /> Configure Comment Automation
+              </span>
+            }
+          >
+            <AutomationTriggersPanel 
+              instagramBusinessId={account.instagramBusinessId}
+              oauthSession=""
+              onNext={handleTriggersSaved}
+            />
+          </Card>
+        )}
+      </div>
+    );
+  }
 
-export default function InstagramIntegrationPage() {
-  return (
-    <App suppressHydrationWarning>
-      <Suspense fallback={
-        <div className="flex items-center justify-center min-h-[400px]">
-          <Spin size="large" />
-        </div>
-      }>
-        <InstagramIntegrationContent />
-      </Suspense>
-    </App>
-  );
+  // Default: Onboarding Start Screen
+  return <InstagramStartScreen />;
 }
