@@ -2,12 +2,13 @@
 
 import React, { useState, useEffect, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { Card, Spin, Avatar, Tag, Typography, message, App } from 'antd';
-import { InstagramOutlined, CheckCircleFilled, CloseCircleFilled, SettingOutlined, ThunderboltOutlined } from '@ant-design/icons';
+import { Card, Spin, Avatar, Tag, Typography, Button, message, App } from 'antd';
+import { InstagramOutlined, CheckCircleFilled, CloseCircleFilled, SettingOutlined, LockOutlined } from '@ant-design/icons';
 import { useApiClient } from '@/services/useApiClient';
 import { AutomationTriggersPanel } from '@/modules/instagram/components/InstagramConnect';
 
 const { Title, Text, Paragraph } = Typography;
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
 
 interface InstagramAccount {
   id: string;
@@ -18,7 +19,6 @@ interface InstagramAccount {
 
 interface AutomationStatus {
   webhookActive: boolean;
-  triggerActive: boolean;
   privateReplyEnabled: boolean;
   automationActive: boolean;
 }
@@ -35,11 +35,11 @@ function InstagramIntegrationContent() {
   const [showConfig, setShowConfig] = useState<boolean>(false);
 
   useEffect(() => {
-    // TASK 8: Remove Meta hash if present
+    // TASK 9: Remove Meta hash
     if (typeof window !== 'undefined') {
       if (
-        window.location.hash === '#_=_' || 
         window.location.hash === '#*=*' || 
+        window.location.hash === '#_=_' || 
         window.location.hash.includes('_=_') || 
         window.location.hash.includes('*=*')
       ) {
@@ -52,8 +52,6 @@ function InstagramIntegrationContent() {
     }
 
     if (statusParam === 'success') {
-      // TASK 9: Add log for OAuth success
-      console.log('INSTAGRAM_OAUTH_SUCCESS');
       fetchInstagramDetails();
     } else {
       setLoading(false);
@@ -61,26 +59,34 @@ function InstagramIntegrationContent() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [statusParam]);
 
+  const handleConnectClick = () => {
+    // TASK 10: Log connect action and oauth start
+    console.log('INSTAGRAM_CONNECT_CLICKED');
+    console.log('OAUTH_STARTED');
+    
+    // TASK 3: Button action redirect
+    window.location.href = `${API_URL}/instagram/connect-instagram`;
+  };
+
   const fetchInstagramDetails = async () => {
     setLoading(true);
-    // TASK 9: Add log for FETCH_ACCOUNTS_STARTED
-    console.log('FETCH_ACCOUNTS_STARTED');
+    // TASK 10: Log fetch start
+    console.log('ACCOUNT_FETCH_STARTED');
     try {
-      // TASK 3: Automatically call GET /instagram/accounts
+      // TASK 4: Call GET /instagram/accounts
       const result = await api.get('/instagram/accounts');
       const accountsList = Array.isArray(result) ? result : (result?.data || []);
 
       if (accountsList.length > 0) {
-        // TASK 9: Add log for FETCH_ACCOUNTS_SUCCESS
-        console.log('FETCH_ACCOUNTS_SUCCESS', accountsList[0]);
         const connectedAccount = accountsList[0];
+        // TASK 10: Log fetch success
+        console.log('ACCOUNT_FETCH_SUCCESS', connectedAccount);
         setAccount(connectedAccount);
         
-        // TASK 5: Call GET /instagram/automation-status/:id
+        // TASK 6: Call GET /instagram/automation-status/:id
         await fetchAutomationStatus(connectedAccount.id);
 
-        // TASK 7: Automatically open Configure Automation screen
-        console.log('OPEN_CONFIGURATION_SCREEN');
+        // TASK 8: Automatically open Configure Automation screen
         setShowConfig(true);
       } else {
         message.warning('No connected Instagram account found.');
@@ -96,23 +102,20 @@ function InstagramIntegrationContent() {
   const fetchAutomationStatus = async (accountId: string) => {
     try {
       const statusRes: any = await api.get(`/instagram/automation-status/${accountId}`);
-      // TASK 9: Add log for AUTOMATION_STATUS_LOADED
+      // TASK 10: Log automation status loaded
       console.log('AUTOMATION_STATUS_LOADED', statusRes);
 
-      // Resiliently map response variables to support standard schemas
       const data = statusRes?.data || statusRes;
       setAutomationStatus({
         webhookActive: data?.webhookActive ?? data?.webhookSubscribed ?? true,
-        triggerActive: data?.triggerActive ?? data?.triggerEnabled ?? true,
         privateReplyEnabled: data?.privateReplyEnabled ?? data?.privateReply ?? true,
         automationActive: data?.automationActive ?? data?.automation ?? true,
       });
     } catch (error) {
       console.error('Failed to load automation status:', error);
-      // Fallback defaults to keep the UX clean and running
+      // Fallback defaults
       setAutomationStatus({
         webhookActive: true,
-        triggerActive: true,
         privateReplyEnabled: true,
         automationActive: true,
       });
@@ -130,31 +133,63 @@ function InstagramIntegrationContent() {
     return (
       <div className="flex flex-col items-center justify-center min-h-[400px] space-y-4">
         <Spin size="large" />
-        <Text type="secondary">Automatically connecting your Instagram account...</Text>
+        <Text type="secondary">Processing connection...</Text>
       </div>
     );
   }
 
+  // TASK 2: Initial Connection Screen
   if (statusParam !== 'success') {
     return (
-      <Card className="rounded-2xl border-gray-200 text-center py-12">
-        <InstagramOutlined className="text-5xl text-gray-300 mb-4" />
-        <Title level={4}>Instagram Connection</Title>
-        <Paragraph type="secondary" className="mb-4">
-          Please initiate connection from the integrations page or start screen.
-        </Paragraph>
-      </Card>
+      <div className="max-w-4xl mx-auto space-y-8">
+        <div className="flex items-center gap-4">
+          <div className="w-12 h-12 rounded-xl flex items-center justify-center shadow-lg"
+            style={{ background: 'linear-gradient(135deg, #833ab4, #fd1d1d, #fcb045)' }}>
+            <InstagramOutlined className="text-2xl text-white" />
+          </div>
+          <div>
+            <Title level={3} className="!mb-0">Connect Instagram</Title>
+            <Text type="secondary" className="text-sm">
+              Connect your Instagram professional account and automate comments, messages and private replies.
+            </Text>
+          </div>
+        </div>
+
+        <Card className="rounded-3xl border-2 border-dashed border-indigo-100 bg-gradient-to-b from-indigo-50/30 to-white p-12 text-center space-y-6">
+          <div className="flex justify-center">
+            <div className="w-20 h-20 rounded-full flex items-center justify-center shadow-md bg-white border border-gray-100">
+              <InstagramOutlined className="text-4xl text-pink-600 animate-pulse" />
+            </div>
+          </div>
+          <div className="space-y-2">
+            <Title level={4}>Integrate Instagram-Native Automations</Title>
+            <Paragraph type="secondary" className="max-w-md mx-auto">
+              Boost user engagement instantly by triggering comment auto-responses and direct message flows.
+            </Paragraph>
+          </div>
+          <Button 
+            type="primary" 
+            size="large" 
+            icon={<LockOutlined />}
+            onClick={handleConnectClick} 
+            className="h-12 px-8 text-base font-semibold rounded-xl shadow-md border-none"
+            style={{ background: 'linear-gradient(135deg, #833ab4, #fd1d1d, #fcb045)' }}
+          >
+            Connect Instagram
+          </Button>
+        </Card>
+      </div>
     );
   }
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
       <div className="flex items-center gap-3 mb-6">
-        <InstagramOutlined className="text-3xl text-pink-600 animate-pulse" />
+        <InstagramOutlined className="text-3xl text-pink-600" />
         <Title level={3} className="!mb-0">Instagram Integration</Title>
       </div>
 
-      {/* TASK 4: Render connected account details if account exists */}
+      {/* TASK 5: Render connected account details */}
       {account && (
         <Card className="rounded-2xl border-gray-200 shadow-sm p-6 bg-gradient-to-r from-purple-50/50 via-white to-pink-50/50">
           <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
@@ -174,20 +209,12 @@ function InstagramIntegrationContent() {
               </div>
             </div>
             
-            {/* TASK 6: Render automation statuses */}
+            {/* TASK 7: Render automation statuses (Webhook, Private Reply, Automation) */}
             {automationStatus && (
-              <div className="grid grid-cols-2 gap-3 min-w-[280px]">
+              <div className="grid grid-cols-1 gap-2 min-w-[200px]">
                 <div className="flex items-center justify-between px-3 py-1.5 bg-white border border-gray-100 rounded-xl">
                   <Text type="secondary" className="text-xs">Webhook:</Text>
                   {automationStatus.webhookActive ? (
-                    <Text className="text-xs font-semibold text-emerald-600"><CheckCircleFilled /> Active</Text>
-                  ) : (
-                    <Text className="text-xs font-semibold text-red-500"><CloseCircleFilled /> Inactive</Text>
-                  )}
-                </div>
-                <div className="flex items-center justify-between px-3 py-1.5 bg-white border border-gray-100 rounded-xl">
-                  <Text type="secondary" className="text-xs">Trigger:</Text>
-                  {automationStatus.triggerActive ? (
                     <Text className="text-xs font-semibold text-emerald-600"><CheckCircleFilled /> Active</Text>
                   ) : (
                     <Text className="text-xs font-semibold text-red-500"><CloseCircleFilled /> Inactive</Text>
@@ -215,7 +242,7 @@ function InstagramIntegrationContent() {
         </Card>
       )}
 
-      {/* TASK 7: Automatically open/render Configure Automation screen */}
+      {/* TASK 8: Automatically open/render Configure Automation screen */}
       {showConfig && account && (
         <Card 
           className="rounded-2xl border-gray-200 shadow-sm p-6"
