@@ -48,6 +48,12 @@ export default function InstagramStartScreen() {
     window.location.href = `${API_URL}/instagram/connect-instagram`;
   };
 
+  const handleNativeBusinessLogin = () => {
+    console.log('BUSINESS_LOGIN_STARTED');
+    console.log('ASSET_SELECTION_STARTED');
+    window.location.href = `${API_URL}/instagram/native/business-login`;
+  };
+
   return (
     <div className="max-w-4xl mx-auto space-y-8">
 
@@ -73,8 +79,36 @@ export default function InstagramStartScreen() {
         </Tag>
       </div>
 
-      {/* ── Main connection card ────────────────────────────── */}
-      <div className="rounded-3xl border-2 border-dashed border-indigo-100 bg-gradient-to-b from-indigo-50/60 to-white p-12 text-center space-y-8">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {/* ── Native connection card ────────────────────────────── */}
+        <div className="rounded-3xl border-2 border-dashed border-pink-200 bg-gradient-to-b from-pink-50/60 to-white p-10 text-center space-y-6">
+          <div className="flex items-center justify-center">
+            <div className="w-20 h-20 rounded-full flex items-center justify-center shadow-md bg-gradient-to-br from-pink-500 to-rose-500">
+              <InstagramOutlined className="text-4xl text-white" />
+            </div>
+          </div>
+          <div className="space-y-2">
+            <Title level={4} className="!mb-0">Instagram Business Connector</Title>
+            <Paragraph type="secondary" className="text-sm !mb-0">
+              Connect Instagram for comments, private replies, and CRM automation.
+            </Paragraph>
+          </div>
+          <Button
+            type="primary"
+            size="large"
+            icon={<LockOutlined />}
+            onClick={handleNativeBusinessLogin}
+            className="w-full text-base font-semibold rounded-xl shadow-md bg-gradient-to-r from-pink-500 to-rose-500 border-none h-12"
+          >
+            Connect Instagram Business
+          </Button>
+          <Text type="secondary" className="text-xs block">
+            Direct Meta Business Login integration
+          </Text>
+        </div>
+
+        {/* ── Main connection card ────────────────────────────── */}
+        <div className="rounded-3xl border-2 border-dashed border-indigo-100 bg-gradient-to-b from-indigo-50/60 to-white p-10 text-center space-y-6">
 
         {/* Instagram gradient icon */}
         <div className="flex items-center justify-center">
@@ -128,6 +162,7 @@ export default function InstagramStartScreen() {
         <Text type="secondary" className="text-xs block">
           You will be redirected to Meta for authentication
         </Text>
+      </div>
       </div>
 
       {/* ── Permissions info ────────────────────────────────── */}

@@ -65,12 +65,15 @@ export default function InstagramPageContent() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [statusParam, messageParam, accountIdParam]);
 
+  const [loadingMsg, setLoadingMsg] = useState<string>('Connecting Instagram...');
+
   const handleSuccessCallback = async () => {
     setLoading(true);
     setError(null);
     
     // TASK 5: Add log for ACCOUNT_FETCH_STARTED
     console.log('ACCOUNT_FETCH_STARTED');
+    setLoadingMsg('Fetching assets...');
     
     try {
       // 1. Call GET /instagram/accounts
@@ -83,6 +86,7 @@ export default function InstagramPageContent() {
         console.log('ACCOUNT_FETCH_SUCCESS', connectedAccount);
         setAccount(connectedAccount);
 
+        setLoadingMsg('Saving account...');
         // 2. Call POST /instagram/connect-account
         console.log('AUTOMATION_SETUP_STARTED');
         try {
@@ -94,11 +98,13 @@ export default function InstagramPageContent() {
           console.warn('POST /instagram/connect-account call finished with warning:', postErr);
         }
 
+        setLoadingMsg('Configuring automation...');
         // 3. Call GET /instagram/automation-status/:id
         await fetchAutomationStatus(connectedAccount.id);
 
         // TASK 8: Automatically open Configure Automation screen
         setShowConfig(true);
+        console.log('AUTOMATION_READY');
       } else {
         setError('No connected Instagram accounts were found.');
       }
@@ -169,7 +175,7 @@ export default function InstagramPageContent() {
     return (
       <div className="flex flex-col items-center justify-center min-h-[400px] space-y-4">
         <Spin size="large" />
-        <Text type="secondary">{disconnecting ? 'Disconnecting...' : 'Fetching account...'}</Text>
+        <Text type="secondary">{disconnecting ? 'Disconnecting...' : loadingMsg}</Text>
       </div>
     );
   }
@@ -236,6 +242,14 @@ export default function InstagramPageContent() {
             {/* TASK 7: Render Webhook, Private Reply, Automation statuses */}
             {automationStatus && (
               <div className="grid grid-cols-1 gap-2 min-w-[200px]">
+                <div className="flex items-center justify-between px-3 py-1.5 bg-white border border-gray-100 rounded-xl">
+                  <Text type="secondary" className="text-xs">Business Portfolio:</Text>
+                  {disconnected ? (
+                    <Text className="text-xs font-semibold text-red-500"><CloseCircleFilled /> Disconnected</Text>
+                  ) : (
+                    <Text className="text-xs font-semibold text-emerald-600"><CheckCircleFilled /> Linked</Text>
+                  )}
+                </div>
                 <div className="flex items-center justify-between px-3 py-1.5 bg-white border border-gray-100 rounded-xl">
                   <Text type="secondary" className="text-xs">Webhook:</Text>
                   {disconnected || !automationStatus.webhookActive ? (
