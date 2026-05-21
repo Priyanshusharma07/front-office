@@ -1,12 +1,12 @@
 'use client';
 
-import React, { useEffect } from 'react';
+import React, { useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Spin, Typography } from 'antd';
 
 const { Title, Text } = Typography;
 
-export default function InstagramNativeCallback() {
+function CallbackHandler() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
@@ -39,5 +39,13 @@ export default function InstagramNativeCallback() {
       <Title level={4} className="mt-4">Connecting your Instagram account...</Title>
       <Text>Please wait while we finalize the setup.</Text>
     </div>
+  );
+}
+
+export default function InstagramNativeCallback() {
+  return (
+    <Suspense fallback={<Spin size="large" className="flex justify-center mt-10" />}>
+      <CallbackHandler />
+    </Suspense>
   );
 }

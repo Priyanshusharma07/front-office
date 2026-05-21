@@ -24,10 +24,12 @@ export default async function InstagramPage({
 
   console.log('CONNECT_SCREEN_RENDERED');
   return (
-    <App suppressHydrationWarning>
-      <Suspense fallback={<div className="p-12 text-center">Loading...</div>}>
-        <InstagramPageContent />
-      </Suspense>
-    </App>
+    <div suppressHydrationWarning>
+      <App>
+        <Suspense fallback={<div className="p-12 text-center">Loading...</div>}>
+          <InstagramPageContent />
+        </Suspense>
+      </App>
+    </div>
   );
 }
