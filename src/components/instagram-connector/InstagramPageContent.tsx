@@ -36,6 +36,9 @@ export default function InstagramPageContent() {
   const [account, setAccount] = useState<InstagramAccount | null>(null);
   const [automationStatus, setAutomationStatus] = useState<AutomationStatus | null>(null);
   const [showConfig, setShowConfig] = useState<boolean>(false);
+  const [disconnected, setDisconnected] = useState<boolean>(false);
+  const [disconnecting, setDisconnecting] = useState<boolean>(false);
+  const { modal } = App.useApp();
 
   useEffect(() => {
     // TASK 4: Remove Meta hash
@@ -109,8 +112,8 @@ export default function InstagramPageContent() {
 
   const fetchAutomationStatus = async (accountId: string) => {
     try {
-      const statusRes: any = await api.get(`/instagram/automation-status/${accountId}`);
-      console.log('AUTOMATION_STATUS_LOADED', statusRes);
+      const statusRes: any = await api.get(`/instagram/account-status/${accountId}`);
+      console.log('ACCOUNT_STATUS_FETCHED', statusRes);
 
       const data = statusRes?.data || statusRes;
       setAutomationStatus({
@@ -136,11 +139,37 @@ export default function InstagramPageContent() {
     }
   };
 
+  const handleDisconnect = () => {
+    console.log('DISCONNECT_CLICKED');
+    modal.confirm({
+      title: 'Disconnect Instagram Account?',
+      content: 'Disconnecting will disable automations and remove access tokens.',
+      okText: 'Disconnect',
+      okType: 'danger',
+      cancelText: 'Cancel',
+      onOk: async () => {
+        try {
+          setDisconnecting(true);
+          await api.post('/instagram/disconnect-account', { accountId: account?.id });
+          console.log('DISCONNECT_SUCCESS');
+          setDisconnected(true);
+          setShowConfig(false);
+          message.success('Account disconnected successfully.');
+        } catch (err) {
+          console.error(err);
+          message.error('Failed to disconnect account');
+        } finally {
+          setDisconnecting(false);
+        }
+      }
+    });
+  };
+
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[400px] space-y-4">
         <Spin size="large" />
-        <Text type="secondary">Processing Instagram connection callback...</Text>
+        <Text type="secondary">{disconnecting ? 'Disconnecting...' : 'Fetching account...'}</Text>
       </div>
     );
   }
@@ -194,7 +223,11 @@ export default function InstagramPageContent() {
               <div>
                 <Title level={4} className="!mb-1">@{account.username}</Title>
                 <div className="flex items-center gap-2">
-                  <Tag color="success" icon={<CheckCircleFilled />} className="rounded-full px-3 m-0 font-medium">✓ Connected</Tag>
+                  {disconnected ? (
+                    <Tag color="error" icon={<CloseCircleFilled />} className="rounded-full px-3 m-0 font-medium">Connected ❌</Tag>
+                  ) : (
+                    <Tag color="success" icon={<CheckCircleFilled />} className="rounded-full px-3 m-0 font-medium">✓ Connected</Tag>
+                  )}
                   <Text type="secondary" className="text-xs">ID: {account.instagramBusinessId}</Text>
                 </div>
               </div>
@@ -205,29 +238,37 @@ export default function InstagramPageContent() {
               <div className="grid grid-cols-1 gap-2 min-w-[200px]">
                 <div className="flex items-center justify-between px-3 py-1.5 bg-white border border-gray-100 rounded-xl">
                   <Text type="secondary" className="text-xs">Webhook:</Text>
-                  {automationStatus.webhookActive ? (
-                    <Text className="text-xs font-semibold text-emerald-600"><CheckCircleFilled /> Active</Text>
-                  ) : (
+                  {disconnected || !automationStatus.webhookActive ? (
                     <Text className="text-xs font-semibold text-red-500"><CloseCircleFilled /> Inactive</Text>
+                  ) : (
+                    <Text className="text-xs font-semibold text-emerald-600"><CheckCircleFilled /> Active</Text>
                   )}
                 </div>
                 <div className="flex items-center justify-between px-3 py-1.5 bg-white border border-gray-100 rounded-xl">
                   <Text type="secondary" className="text-xs">Private Reply:</Text>
-                  {automationStatus.privateReplyEnabled ? (
-                    <Text className="text-xs font-semibold text-emerald-600"><CheckCircleFilled /> Enabled</Text>
-                  ) : (
+                  {disconnected || !automationStatus.privateReplyEnabled ? (
                     <Text className="text-xs font-semibold text-red-500"><CloseCircleFilled /> Disabled</Text>
+                  ) : (
+                    <Text className="text-xs font-semibold text-emerald-600"><CheckCircleFilled /> Enabled</Text>
                   )}
                 </div>
                 <div className="flex items-center justify-between px-3 py-1.5 bg-white border border-gray-100 rounded-xl">
                   <Text type="secondary" className="text-xs">Automation:</Text>
-                  {automationStatus.automationActive ? (
-                    <Text className="text-xs font-semibold text-emerald-600"><CheckCircleFilled /> Active</Text>
-                  ) : (
+                  {disconnected || !automationStatus.automationActive ? (
                     <Text className="text-xs font-semibold text-red-500"><CloseCircleFilled /> Disabled</Text>
+                  ) : (
+                    <Text className="text-xs font-semibold text-emerald-600"><CheckCircleFilled /> Active</Text>
                   )}
                 </div>
               </div>
+            )}
+          </div>
+
+          <div className="mt-6 flex justify-end">
+            {disconnected ? (
+              <Button type="primary" onClick={() => window.location.href = '/instagram'}>Connect Instagram</Button>
+            ) : (
+              <Button danger loading={disconnecting} onClick={handleDisconnect}>Disconnect Account</Button>
             )}
           </div>
         </Card>
