@@ -33,6 +33,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     { key: '/automations', icon: <ThunderboltOutlined />, label: 'Automations' },
     { key: '/integrations', icon: <InstagramOutlined />, label: 'Integrations' },
     { key: '/instagram', icon: <InstagramOutlined />, label: 'Instagram' },
+    { key: '/instagram-native', icon: <InstagramOutlined />, label: 'Instagram Native' },
     { key: '/analytics', icon: <BarChartOutlined />, label: 'Analytics' },
     { key: '/team', icon: <TeamOutlined />, label: 'Team' },
     { key: '/billing', icon: <CreditCardOutlined />, label: 'Billing' },
