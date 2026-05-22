@@ -12,7 +12,12 @@ import {
   ReloadOutlined,
   ExclamationCircleOutlined,
 } from '@ant-design/icons';
-import { useNativeAccount } from './hooks/useNativeAccount';
+import {
+  useNativeAccount,
+  getPersistedAccountId,
+  persistAccountId,
+  clearPersistedAccountId,
+} from './hooks/useNativeAccount';
 import { useSocket } from '@/modules/websocket/SocketProvider';
 import { AccountStatusCard, AccountStatusCardSkeleton } from './components/AccountStatusCard';
 import { PostsGrid } from './components/PostsGrid';
@@ -29,13 +34,6 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
 
 type ActiveTab = 'posts' | 'automation' | 'webhooks' | 'settings';
 
-/* ── localStorage key for persisted accountId ─────── */
-const STORAGE_KEY = 'instagramAccountId';
-
-function persistedAccountId(): string | null {
-  if (typeof window === 'undefined') return null;
-  return localStorage.getItem(STORAGE_KEY);
-}
 
 /* ═══════════════════════════════════════════════════════
    NativeAutomationFlow — orchestrator for the
@@ -46,7 +44,7 @@ export function NativeAutomationFlow() {
   const { socket } = useSocket();
 
   const [activeTab, setActiveTab] = useState<ActiveTab>('posts');
-  const [accountId, setAccountId] = useState<string | null>(persistedAccountId);
+  const [accountId, setAccountId] = useState<string | null>(() => getPersistedAccountId());
 
   /* ── Account status ──────────────────────────────── */
   const {
@@ -63,7 +61,7 @@ export function NativeAutomationFlow() {
     const id = accountStatus?.account?.id;
     if (id) {
       setAccountId(id);
-      localStorage.setItem(STORAGE_KEY, id);
+      persistAccountId(id);
     }
   }, [accountStatus]);
 
@@ -135,8 +133,8 @@ export function NativeAutomationFlow() {
   const handleDisconnect = () => {
     if (!accountStatus?.account?.id) return;
     disconnect(accountStatus.account.id);
+    clearPersistedAccountId();
     setAccountId(null);
-    localStorage.removeItem(STORAGE_KEY);
   };
 
   /* ── Render: loading ───────────────────────────────── */

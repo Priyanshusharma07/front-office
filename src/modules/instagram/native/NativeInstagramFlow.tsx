@@ -3,7 +3,12 @@
 import React, { useEffect, useState } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { App } from 'antd';
-import { useNativeAccount } from './hooks/useNativeAccount';
+import {
+  useNativeAccount,
+  getPersistedAccountId,
+  persistAccountId,
+  clearPersistedAccountId,
+} from './hooks/useNativeAccount';
 import { HeroConnect } from './components/HeroConnect';
 import { NativeManagementScreen } from './components/NativeManagementScreen';
 import { LoadingState } from './components/LoadingState';
@@ -13,8 +18,11 @@ import type { ConnectionState, CallbackParams } from './types';
 /* ═══════════════════════════════════════════════════════
    NativeInstagramFlow — top-level orchestrator
 
-   Reads OAuth callback query params, manages flow state,
-   and renders the correct screen.
+   Flow:
+   1. On mount: read accountId from localStorage → query fires automatically
+   2. On OAuth callback: extract accountId from URL → save to LS → query fires
+   3. Normalise whatever shape the backend returns into NativeAccountStatus
+   4. Render the correct screen based on connection state
 ═══════════════════════════════════════════════════════ */
 export function NativeInstagramFlow() {
   const router = useRouter();
@@ -23,8 +31,12 @@ export function NativeInstagramFlow() {
 
   const [flowState, setFlowState] = useState<ConnectionState>('idle');
   const [callbackHandled, setCallbackHandled] = useState(false);
-  // Persists the accountId from the OAuth callback so the hook can query the API
-  const [accountId, setAccountId] = useState<string | null>(null);
+
+  /*
+   * IMPORTANT: initialise from localStorage so returning users see their
+   * connected account immediately — no re-login required.
+   */
+  const [accountId, setAccountId] = useState<string | null>(() => getPersistedAccountId());
 
   const {
     accountStatus,
@@ -42,70 +54,76 @@ export function NativeInstagramFlow() {
     setCallbackHandled(true);
 
     // Read ALL params BEFORE cleaning the URL so nothing is lost
-    const status       = searchParams.get('status') as CallbackParams['status'];
-    const cbAccountId  = searchParams.get('accountId');
-    const errorParam   = searchParams.get('error');
-    const errorDesc    = searchParams.get('error_description');
-    // Backend may also send a human-readable 'message' on error
-    const backendMsg   = searchParams.get('message');
+    const status      = searchParams.get('status') as CallbackParams['status'];
+    const cbAccountId = searchParams.get('accountId');
+    const errorParam  = searchParams.get('error');
+    const errorDesc   = searchParams.get('error_description');
+    const backendMsg  = searchParams.get('message');
 
     console.log('[NativeIG] Callback params —', { status, cbAccountId, errorParam, backendMsg });
 
     if (status === 'success') {
       if (!cbAccountId) {
-        console.error('[NativeIG] Success callback received but accountId is missing in URL');
+        console.error('[NativeIG] Success callback missing accountId');
         setFlowState('error');
         message.error('Instagram authorization succeeded but account ID is missing. Please try again.');
         return;
       }
 
       setFlowState('processing');
-      // Persist accountId in state BEFORE cleaning the URL so the hook can use it
+
+      // Persist BEFORE cleaning the URL
       setAccountId(cbAccountId);
-      // Now it's safe to clean the URL
+      persistAccountId(cbAccountId);           // ← save to localStorage
+
+      // Clean the URL
       router.replace('/instagram/native', { scroll: false });
 
-      // accountId is now set → hook will auto-fetch; transition when done
+      // Query is now enabled (accountId set); refetch explicitly to transition fast
       refetch().then(() => {
         setFlowState('connected');
         message.success('Instagram Business account connected!');
+      }).catch(() => {
+        // error effect below will handle this
       });
     } else if (status === 'error' || errorParam) {
       setFlowState('error');
       const humanMsg =
-        backendMsg
-          ? decodeURIComponent(backendMsg)
-          : errorDesc
-          ? decodeURIComponent(errorDesc)
-          : errorParam
-          ? decodeURIComponent(errorParam)
-          : 'Instagram authorization failed. Please try again.';
+        backendMsg  ? decodeURIComponent(backendMsg)  :
+        errorDesc   ? decodeURIComponent(errorDesc)   :
+        errorParam  ? decodeURIComponent(errorParam)  :
+                      'Instagram authorization failed. Please try again.';
       message.error(humanMsg);
-      // Clean URL after a brief delay
       setTimeout(() => router.replace('/instagram/native', { scroll: false }), 150);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  /* ── 2. Sync flow state from account data ───────────── */
+  /* ── 2. Sync flow state from resolved account data ──── */
   useEffect(() => {
     if (isLoading) return;
+
     if (accountStatus?.connected) {
+      // connected — show management screen regardless of whether callback just ran
       setFlowState('connected');
     } else if (accountStatus && !accountStatus.connected) {
+      // explicit disconnected response → go idle
       setFlowState('idle');
     }
+    // undefined means query hasn't run yet (no accountId) — don't change state
   }, [accountStatus, isLoading]);
 
   /* ── Handlers ─────────────────────────────────────────── */
   const handleConnect = () => {
     setFlowState('connecting');
-    initiateConnection(); // redirects window.location
+    initiateConnection();
   };
 
   const handleDisconnect = () => {
-    if (!accountStatus?.account?.id) return;
-    disconnect(accountStatus.account.id);
+    const id = accountStatus?.account?.id ?? accountId;
+    if (!id) return;
+    disconnect(id);
+    clearPersistedAccountId();               // ← clear localStorage
     setAccountId(null);
     setFlowState('idle');
   };
@@ -117,34 +135,50 @@ export function NativeInstagramFlow() {
 
   /* ── Render ─────────────────────────────────────────── */
 
-  // Initial data load (no accountId in state yet; query is disabled)
+  // Query is in flight (accountId known, waiting for response)
   if (isLoading) {
     return <LoadingState message="Loading your Instagram account…" />;
   }
 
-  // Redirecting to Instagram
+  // Browser redirecting to Instagram OAuth
   if (flowState === 'connecting') {
     return <LoadingState message="Redirecting to Instagram…" />;
   }
 
-  // Processing callback
+  // Processing the callback response
   if (flowState === 'processing') {
     return <LoadingState message="Completing connection…" />;
   }
 
-  // Error
+  // API or OAuth error
   if (flowState === 'error' || (error && flowState !== 'connected')) {
     return (
       <ErrorState
         title="Connection Failed"
         message="We couldn't connect your Instagram account. This could be due to a cancelled authorization or a permissions issue."
-        onRetry={() => setFlowState('idle')}
+        onRetry={() => {
+          clearPersistedAccountId();
+          setAccountId(null);
+          setFlowState('idle');
+        }}
       />
     );
   }
 
-  // Connected — show full management screen
-  if (flowState === 'connected' && accountStatus?.account) {
+  /*
+   * Connected — render the management screen.
+   *
+   * Guard: flowState === 'connected' AND we have account data.
+   * The account object is guaranteed by the normaliser in useNativeAccount,
+   * so `accountStatus?.account` is truthy whenever `accountStatus.connected`.
+   *
+   * Fallback: if accountStatus is still undefined but flowState is 'connected'
+   * (race during refetch after callback) keep showing the loader.
+   */
+  if (flowState === 'connected') {
+    if (!accountStatus?.account) {
+      return <LoadingState message="Loading account details…" />;
+    }
     return (
       <NativeManagementScreen
         accountStatus={accountStatus}
