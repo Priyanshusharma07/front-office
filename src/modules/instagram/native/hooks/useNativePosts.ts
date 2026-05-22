@@ -2,6 +2,7 @@
 
 import { useInfiniteQuery } from '@tanstack/react-query';
 import { useApiClient } from '@/services/useApiClient';
+import { getPosts as fetchPosts } from '@/services/instagramNative';
 import type { PostsResponse } from '../types';
 
 const PAGE_LIMIT = 12;
@@ -28,7 +29,7 @@ export function useNativePosts(accountId: string | null | undefined) {
       if (pageParam) params.cursor = pageParam;
 
       console.log('[NativeIG] GET /instagram/native/posts/' + accountId, params);
-      const res = await api.get<PostsResponse>(`/instagram/native/posts/${accountId}`, { params });
+      const res = await fetchPosts(api, accountId!, params);
       console.log('[NativeIG] posts ->', res);
       return res;
     },
@@ -40,7 +41,8 @@ export function useNativePosts(accountId: string | null | undefined) {
     retry: 1,
   });
 
-  const posts = data?.pages.flatMap((p) => p.posts) ?? [];
+  // Safe extraction. If a page returned undefined for posts, fallback to an empty array.
+  const posts = data?.pages.flatMap((p) => p?.posts ?? []) ?? [];
 
   return {
     posts,
