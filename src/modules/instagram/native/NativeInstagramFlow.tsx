@@ -5,15 +5,14 @@ import { useSearchParams, useRouter } from 'next/navigation';
 import { App } from 'antd';
 import { useNativeAccount } from './hooks/useNativeAccount';
 import { HeroConnect } from './components/HeroConnect';
-import { ConnectedCard } from './components/ConnectedCard';
-import { NativeAutomationScreen } from './components/NativeAutomationScreen';
+import { NativeManagementScreen } from './components/NativeManagementScreen';
 import { LoadingState } from './components/LoadingState';
 import { ErrorState } from './components/ErrorState';
 import type { ConnectionState, CallbackParams } from './types';
 
 /* ═══════════════════════════════════════════════════════
    NativeInstagramFlow — top-level orchestrator
-   
+
    Reads OAuth callback query params, manages flow state,
    and renders the correct screen.
 ═══════════════════════════════════════════════════════ */
@@ -23,7 +22,6 @@ export function NativeInstagramFlow() {
   const { message } = App.useApp();
 
   const [flowState, setFlowState] = useState<ConnectionState>('idle');
-  const [showAutomation, setShowAutomation] = useState(false);
   const [callbackHandled, setCallbackHandled] = useState(false);
   // Persists the accountId from the OAuth callback so the hook can query the API
   const [accountId, setAccountId] = useState<string | null>(null);
@@ -44,8 +42,8 @@ export function NativeInstagramFlow() {
     setCallbackHandled(true);
 
     // Read ALL params BEFORE cleaning the URL so nothing is lost
-    const status    = searchParams.get('status') as CallbackParams['status'];
-    const cbAccountId = searchParams.get('accountId');
+    const status       = searchParams.get('status') as CallbackParams['status'];
+    const cbAccountId  = searchParams.get('accountId');
     const errorParam   = searchParams.get('error');
     const errorDesc    = searchParams.get('error_description');
     // Backend may also send a human-readable 'message' on error
@@ -71,8 +69,6 @@ export function NativeInstagramFlow() {
       refetch().then(() => {
         setFlowState('connected');
         message.success('Instagram Business account connected!');
-        // Auto-open automation setup after a brief pause
-        setTimeout(() => setShowAutomation(true), 800);
       });
     } else if (status === 'error' || errorParam) {
       setFlowState('error');
@@ -110,8 +106,8 @@ export function NativeInstagramFlow() {
   const handleDisconnect = () => {
     if (!accountStatus?.account?.id) return;
     disconnect(accountStatus.account.id);
+    setAccountId(null);
     setFlowState('idle');
-    setShowAutomation(false);
   };
 
   const handleReconnect = () => {
@@ -121,7 +117,7 @@ export function NativeInstagramFlow() {
 
   /* ── Render ─────────────────────────────────────────── */
 
-  // Initial data load
+  // Initial data load (no accountId in state yet; query is disabled)
   if (isLoading) {
     return <LoadingState message="Loading your Instagram account…" />;
   }
@@ -147,35 +143,13 @@ export function NativeInstagramFlow() {
     );
   }
 
-  // Automation configuration
-  if (showAutomation && accountStatus?.account) {
-    return (
-      <App>
-        <NativeAutomationScreen
-          account={{
-            id: accountStatus.account.id,
-            username: accountStatus.account.username,
-          }}
-          onBack={() => {
-            setShowAutomation(false);
-            setFlowState('connected');
-          }}
-        />
-      </App>
-    );
-  }
-
-  // Connected — show account card
+  // Connected — show full management screen
   if (flowState === 'connected' && accountStatus?.account) {
     return (
-      <ConnectedCard
-        account={accountStatus.account}
-        onConfigureAutomation={() => {
-          setShowAutomation(true);
-          setFlowState('configuring');
-        }}
-        onDisconnect={handleDisconnect}
+      <NativeManagementScreen
+        accountStatus={accountStatus}
         onReconnect={handleReconnect}
+        onDisconnect={handleDisconnect}
         isDisconnecting={isDisconnecting}
       />
     );

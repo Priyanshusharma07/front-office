@@ -139,9 +139,11 @@ function AutomationRow({
 interface NativeAutomationScreenProps {
   account: { id: string; username: string };
   onBack: () => void;
+  /** When true, hides the Back button (component is embedded in a tab) */
+  embedded?: boolean;
 }
 
-export function NativeAutomationScreen({ account, onBack }: NativeAutomationScreenProps) {
+export function NativeAutomationScreen({ account, onBack, embedded = false }: NativeAutomationScreenProps) {
   const { message } = App.useApp();
   const { automations, isLoading, saveAutomation, isSaving, deleteAutomation, isDeleting, deletingId } =
     useNativeAutomation(account.id);
@@ -170,15 +172,17 @@ export function NativeAutomationScreen({ account, onBack }: NativeAutomationScre
 
       {/* ── Header ── */}
       <div className="flex items-center gap-3">
-        <Button
-          id="automation-back-btn"
-          icon={<ArrowLeftOutlined />}
-          onClick={onBack}
-          size="small"
-          className="rounded-xl"
-        >
-          Back
-        </Button>
+        {!embedded && (
+          <Button
+            id="automation-back-btn"
+            icon={<ArrowLeftOutlined />}
+            onClick={onBack}
+            size="small"
+            className="rounded-xl"
+          >
+            Back
+          </Button>
+        )}
         <div>
           <Title level={4} className="!mb-0 flex items-center gap-2">
             <ThunderboltOutlined className="text-indigo-500" />
