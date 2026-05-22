@@ -25,10 +25,8 @@ export function useNativeWebhookEvents(accountId: string | null | undefined) {
   } = useQuery<WebhookEventsResponse>({
     queryKey: ['instagram-native-webhook-events', accountId],
     queryFn: async () => {
-      console.log('[NativeIG] GET /instagram/native/webhook/events?accountId=', accountId);
-      const res = await api.get<WebhookEventsResponse>('/instagram/native/webhook/events', {
-        params: { accountId },
-      });
+      console.log(`[NativeIG] GET /instagram/native/webhook/events/${accountId}`);
+      const res = await api.get<WebhookEventsResponse>(`/instagram/native/webhook/events/${accountId}`);
       console.log('[NativeIG] webhook-events ->', res);
       return res;
     },
