@@ -42,8 +42,15 @@ export function NativeInstagramFlow() {
   const { message } = App.useApp();
   const api = useApiClient();
 
-  /* ── accountId: initialised from localStorage ─────── */
-  const [accountId, setAccountId] = useState<string | null>(() => getPersistedAccountId());
+  /* ── accountId: initialised from localStorage in effect ─────── */
+  const [accountId, setAccountId] = useState<string | null>(null);
+
+  useEffect(() => {
+    const id = getPersistedAccountId();
+    if (id && !accountId) {
+      setAccountId(id);
+    }
+  }, []);
 
   /* ── Connection state machine ─────────────────────── */
   type FlowState = 'idle' | 'connecting' | 'processing' | 'connected' | 'error';
@@ -177,45 +184,61 @@ export function NativeInstagramFlow() {
     setFlowState('idle');
   };
 
+  /* ── Debug Logging ──────────────────────────────────── */
+  useEffect(() => {
+    console.log("ACCOUNT STATUS:", accountStatus);
+    console.log("POSTS:", postsData);
+  }, [accountStatus, postsData]);
+
   /* ── Render ─────────────────────────────────────────── */
+  try {
+    // Loading spinner while fetching status
+    if (statusLoading || flowState === 'connecting' || flowState === 'processing') {
+      const msg =
+        flowState === 'connecting'  ? 'Redirecting to Instagram…' :
+        flowState === 'processing'  ? 'Completing connection…'    :
+                                      'Loading your Instagram account…';
+      return <LoadingState message={msg} />;
+    }
 
-  // Loading spinner while fetching status
-  if (statusLoading || flowState === 'connecting' || flowState === 'processing') {
-    const msg =
-      flowState === 'connecting'  ? 'Redirecting to Instagram…' :
-      flowState === 'processing'  ? 'Completing connection…'    :
-                                    'Loading your Instagram account…';
-    return <LoadingState message={msg} />;
-  }
+    // API or OAuth error
+    if (flowState === 'error' || (statusError && !connected)) {
+      return (
+        <ErrorState
+          title="Connection Failed"
+          message="We couldn't load your Instagram account. Please reconnect."
+          onRetry={handleRetry}
+        />
+      );
+    }
 
-  // API or OAuth error
-  if (flowState === 'error' || (statusError && !connected)) {
+    // Connected — show the full management screen
+    if (flowState === 'connected' && accountStatus?.account) {
+      return (
+        <NativeManagementScreen
+          accountStatus={accountStatus}
+          onReconnect={handleReconnect}
+          onDisconnect={handleDisconnect}
+          isDisconnecting={false}
+        />
+      );
+    }
+
+    // Mid-transition: flowState is 'connected' but data hasn't arrived yet
+    if (flowState === 'connected' && !accountStatus?.account) {
+      return <LoadingState message="Loading account details…" />;
+    }
+
+    // Default: no account — show the connect hero screen
+    return <HeroConnect onConnect={handleConnect} />;
+  } catch (err) {
+    console.error("Instagram page crashed:", err);
     return (
       <ErrorState
-        title="Connection Failed"
-        message="We couldn't load your Instagram account. Please reconnect."
+        title="Unexpected Error"
+        message="An unexpected error occurred while loading the dashboard. Please try again."
         onRetry={handleRetry}
       />
     );
   }
-
-  // Connected — show the full management screen
-  if (flowState === 'connected' && accountStatus?.account) {
-    return (
-      <NativeManagementScreen
-        accountStatus={accountStatus}
-        onReconnect={handleReconnect}
-        onDisconnect={handleDisconnect}
-        isDisconnecting={false}
-      />
-    );
-  }
-
-  // Mid-transition: flowState is 'connected' but data hasn't arrived yet
-  if (flowState === 'connected' && !accountStatus?.account) {
-    return <LoadingState message="Loading account details…" />;
-  }
-
-  // Default: no account — show the connect hero screen
-  return <HeroConnect onConnect={handleConnect} />;
 }
