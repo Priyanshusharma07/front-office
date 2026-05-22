@@ -1,6 +1,7 @@
 import { Suspense } from 'react';
-import NativeInstagramFlow from '@/modules/instagram/native/NativeInstagramFlow';
-import { Spin } from 'antd';
+import { App } from 'antd';
+import { NativeInstagramFlow } from '@/modules/instagram/native/NativeInstagramFlow';
+import { LoadingState } from '@/modules/instagram/native/components/LoadingState';
 
 export const dynamic = 'force-dynamic';
 
@@ -13,15 +14,11 @@ export const metadata = {
 export default function InstagramNativePage() {
   return (
     <div className="min-h-[80vh] py-10 px-4">
-      <Suspense
-        fallback={
-          <div className="flex items-center justify-center py-24">
-            <Spin size="large" />
-          </div>
-        }
-      >
-        <NativeInstagramFlow />
-      </Suspense>
+      <App>
+        <Suspense fallback={<LoadingState message="Loading…" />}>
+          <NativeInstagramFlow />
+        </Suspense>
+      </App>
     </div>
   );
 }
