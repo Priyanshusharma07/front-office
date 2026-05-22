@@ -25,7 +25,7 @@ interface ReplyModalProps {
   open: boolean;
   comment: InstagramComment | null;
   onClose: () => void;
-  onReply: (commentId: string, message: string) => Promise<void>;
+  onReply: (args: { commentId: string; message: string }) => Promise<void>;
   isReplying: boolean;
 }
 
@@ -36,7 +36,7 @@ function ReplyModal({ open, comment, onClose, onReply, isReplying }: ReplyModalP
   const handleSend = async () => {
     if (!comment || !replyText.trim()) return;
     try {
-      await onReply(comment.commentId, replyText.trim());
+      await onReply({ commentId: comment.commentId, message: replyText.trim() });
       antMessage.success('Reply sent successfully!');
       setReplyText('');
       onClose();
