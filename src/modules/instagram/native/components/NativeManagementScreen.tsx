@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Tabs, Typography, Alert, Button } from 'antd';
+import { Tabs, Typography, Alert, Button, Drawer } from 'antd';
 import {
   PictureOutlined,
   MessageOutlined,
@@ -54,10 +54,9 @@ export function NativeManagementScreen({
     error: postsError,
   } = useNativePosts(account.id);
 
-  /* ── Open Comments tab from the Posts grid ──────── */
+  /* ── Open Comments drawer from the Posts grid ──────── */
   const handleSelectPostForComments = (post: InstagramPost) => {
     setSelectedPost(post);
-    setActiveTab('comments');
   };
 
   /* ── Tab items ─────────────────────────────────────── */
@@ -219,6 +218,26 @@ export function NativeManagementScreen({
           size="large"
         />
       </div>
+      {/* ── Post Detail Drawer ── */}
+      <Drawer
+        title="Post Details"
+        placement="right"
+        width={500}
+        onClose={() => setSelectedPost(null)}
+        open={!!selectedPost}
+        destroyOnClose
+      >
+        {selectedPost && (
+          <div className="h-full">
+            <CommentsTab
+              posts={posts}
+              postsLoading={postsLoading}
+              initialPost={selectedPost}
+              onClearInitialPost={() => setSelectedPost(null)}
+            />
+          </div>
+        )}
+      </Drawer>
     </div>
   );
 }

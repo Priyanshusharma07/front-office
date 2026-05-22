@@ -29,6 +29,7 @@ export function useNativeComments(mediaId: string | null | undefined) {
     },
     enabled: Boolean(mediaId),
     staleTime: 15_000,
+    refetchInterval: 10000,
     retry: 1,
   });
 

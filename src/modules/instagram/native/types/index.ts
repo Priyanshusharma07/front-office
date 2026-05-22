@@ -92,6 +92,7 @@ export interface AutomationTrigger {
   accountId?: string;
   triggerType: 'comment' | 'dm' | 'mention' | 'story_reply';
   triggerKeyword?: string;
+  matchType?: 'exact' | 'contains';
   replyMessage: string;
   replyType: 'dm' | 'comment_reply';
   isActive: boolean;

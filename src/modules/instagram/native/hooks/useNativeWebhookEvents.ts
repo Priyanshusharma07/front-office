@@ -34,7 +34,7 @@ export function useNativeWebhookEvents(accountId: string | null | undefined) {
     },
     enabled: Boolean(accountId),
     staleTime: 10_000,
-    refetchInterval: 30_000, // light auto-refresh every 30 s
+    refetchInterval: 5000, // auto-refresh every 5s
     retry: 1,
   });
 

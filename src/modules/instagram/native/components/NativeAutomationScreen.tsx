@@ -37,6 +37,7 @@ const REPLY_TYPES: { value: AutomationTrigger['replyType']; label: string }[] = 
 const BLANK_TRIGGER: Omit<AutomationTrigger, 'id'> = {
   triggerType: 'comment',
   triggerKeyword: '',
+  matchType: 'contains',
   replyMessage: '',
   replyType: 'dm',
   isActive: true,
@@ -80,7 +81,7 @@ function AutomationRow({
   isDeleting,
 }: {
   automation: AutomationTrigger;
-  onDelete: (id: string) => void;
+  onDelete: () => void;
   isDeleting: boolean;
 }) {
   const triggerLabel =
@@ -101,7 +102,7 @@ function AutomationRow({
           </Tag>
           {automation.triggerKeyword && (
             <Tag className="rounded-full text-xs m-0">
-              keyword: &quot;{automation.triggerKeyword}&quot;
+              {automation.matchType === 'exact' ? 'exact match' : 'contains'}: &quot;{automation.triggerKeyword}&quot;
             </Tag>
           )}
         </div>
@@ -116,7 +117,7 @@ function AutomationRow({
         </Tag>
         <Popconfirm
           title="Delete this automation?"
-          onConfirm={() => onDelete(automation.id!)}
+          onConfirm={onDelete}
           okText="Delete"
           okButtonProps={{ danger: true }}
         >
@@ -250,14 +251,26 @@ export function NativeAutomationScreen({ account, onBack, embedded = false }: Na
               (optional — leave blank to match all)
             </Text>
           </Text>
-          <Input
-            id="trigger-keyword-input"
-            placeholder='e.g. "price", "info"'
-            value={form.triggerKeyword}
-            onChange={(e) => setForm((f) => ({ ...f, triggerKeyword: e.target.value }))}
-            className="rounded-xl"
-            size="large"
-          />
+          <div className="flex items-center gap-2">
+            <Select
+              value={form.matchType}
+              onChange={(val) => setForm((f) => ({ ...f, matchType: val }))}
+              size="large"
+              className="w-32"
+              options={[
+                { value: 'contains', label: 'Contains' },
+                { value: 'exact', label: 'Exact match' },
+              ]}
+            />
+            <Input
+              id="trigger-keyword-input"
+              placeholder='e.g. "price", "info"'
+              value={form.triggerKeyword}
+              onChange={(e) => setForm((f) => ({ ...f, triggerKeyword: e.target.value }))}
+              className="rounded-xl flex-1"
+              size="large"
+            />
+          </div>
         </div>
 
         {/* Reply type */}
@@ -346,8 +359,8 @@ export function NativeAutomationScreen({ account, onBack, embedded = false }: Na
               <AutomationRow
                 key={a.id}
                 automation={a}
-                onDelete={deleteAutomation}
-                isDeleting={isDeleting && deletingId === a.id}
+                onDelete={() => deleteAutomation()}
+                isDeleting={isDeleting}
               />
             ))}
           </div>
