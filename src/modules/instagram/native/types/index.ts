@@ -41,15 +41,20 @@ export interface InstagramProfile {
 /** A single post from GET /instagram/native/posts/:accountId */
 export interface InstagramPost {
   id: string;
-  mediaId: string;
-  mediaType: 'IMAGE' | 'VIDEO' | 'CAROUSEL_ALBUM' | string;
+  mediaId?: string;
+  mediaType?: 'IMAGE' | 'VIDEO' | 'CAROUSEL_ALBUM' | string;
+  media_type?: string;
   mediaUrl?: string;
+  media_url?: string;
   thumbnailUrl?: string;
+  thumbnail_url?: string;
   permalink?: string;
   caption?: string;
-  timestamp: string;
-  likeCount: number;
-  commentsCount: number;
+  timestamp?: string;
+  likeCount?: number;
+  like_count?: number;
+  commentsCount?: number;
+  comments_count?: number;
 }
 
 /** Paginated posts response */

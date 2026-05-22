@@ -371,9 +371,9 @@ export function CommentsTab({ posts, postsLoading, initialPost, onClearInitialPo
         >
           {/* Thumbnail */}
           <div className="w-14 h-14 rounded-xl overflow-hidden bg-gray-50 flex-shrink-0">
-            {post.thumbnailUrl || post.mediaUrl ? (
+            {post.thumbnailUrl || post.thumbnail_url || post.mediaUrl || post.media_url ? (
               <img
-                src={post.thumbnailUrl || post.mediaUrl}
+                src={post.thumbnailUrl || post.thumbnail_url || post.mediaUrl || post.media_url}
                 alt=""
                 className="w-full h-full object-cover"
                 loading="lazy"
@@ -393,10 +393,10 @@ export function CommentsTab({ posts, postsLoading, initialPost, onClearInitialPo
             <div className="flex items-center gap-3 mt-1">
               <span className="flex items-center gap-1 text-xs text-gray-400">
                 <MessageOutlined />
-                {post.commentsCount} comment{post.commentsCount !== 1 ? 's' : ''}
+                {post.commentsCount ?? post.comments_count ?? 0} comment{(post.commentsCount ?? post.comments_count ?? 0) !== 1 ? 's' : ''}
               </span>
               <span className="text-xs text-gray-400">
-                {formatDistanceToNow(new Date(post.timestamp), { addSuffix: true })}
+                {formatDistanceToNow(new Date(post.timestamp || new Date().toISOString()), { addSuffix: true })}
               </span>
             </div>
           </div>

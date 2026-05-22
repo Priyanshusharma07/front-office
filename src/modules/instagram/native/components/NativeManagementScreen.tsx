@@ -12,6 +12,7 @@ import {
 import { ProfileCard, ProfileCardSkeleton } from './ProfileCard';
 import { PostsGrid } from './PostsGrid';
 import { CommentsTab } from './CommentsTab';
+import { ErrorBoundary } from './ErrorBoundary';
 import { NativeAutomationScreen } from './NativeAutomationScreen';
 import { SettingsTab } from './SettingsTab';
 import { useNativeProfile } from '../hooks/useNativeProfile';
@@ -85,14 +86,16 @@ export function NativeManagementScreen({
               }
             />
           )}
-          <PostsGrid
-            posts={posts}
-            isLoading={postsLoading}
-            isFetchingNextPage={isFetchingNextPage}
-            hasNextPage={hasNextPage}
-            onLoadMore={fetchNextPage}
-            onSelectPost={handleSelectPostForComments}
-          />
+          <ErrorBoundary>
+            <PostsGrid
+              posts={posts}
+              isLoading={postsLoading}
+              isFetchingNextPage={isFetchingNextPage}
+              hasNextPage={hasNextPage}
+              onLoadMore={fetchNextPage}
+              onSelectPost={handleSelectPostForComments}
+            />
+          </ErrorBoundary>
         </div>
       ),
     },

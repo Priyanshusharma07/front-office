@@ -7,6 +7,7 @@ import {
   MessageOutlined,
   LinkOutlined,
   PlayCircleOutlined,
+  PictureOutlined,
 } from '@ant-design/icons';
 import { formatDistanceToNow } from 'date-fns';
 import type { InstagramPost } from '../types';
@@ -36,9 +37,14 @@ interface PostCardProps {
 }
 
 function PostCard({ post, onSelectPost }: PostCardProps) {
-  const isVideo = post.mediaType === 'VIDEO';
-  const imageUrl = post.thumbnailUrl || post.mediaUrl;
-  const timeAgo = formatDistanceToNow(new Date(post.timestamp), { addSuffix: true });
+  const mediaType = post.mediaType || post.media_type;
+  const isVideo = mediaType === 'VIDEO';
+  const imageUrl = post.thumbnailUrl || post.thumbnail_url || post.mediaUrl || post.media_url;
+  const timestamp = post.timestamp || new Date().toISOString();
+  const timeAgo = formatDistanceToNow(new Date(timestamp), { addSuffix: true });
+  
+  const likeCount = post.likeCount ?? post.like_count ?? 0;
+  const commentsCount = post.commentsCount ?? post.comments_count ?? 0;
 
   return (
     <div className="group rounded-2xl border border-gray-100 bg-white shadow-sm overflow-hidden hover:shadow-md transition-all duration-200 flex flex-col">
@@ -48,12 +54,16 @@ function PostCard({ post, onSelectPost }: PostCardProps) {
           <img
             src={imageUrl}
             alt={post.caption?.slice(0, 60) || 'Instagram post'}
+            onError={(e) => {
+              (e.target as HTMLImageElement).src = '/images/placeholder.png';
+              (e.target as HTMLImageElement).onerror = null;
+            }}
             className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
             loading="lazy"
           />
         ) : (
-          <div className="w-full h-full flex items-center justify-center text-gray-300">
-            <PlayCircleOutlined style={{ fontSize: 40 }} />
+          <div className="w-full h-full flex items-center justify-center text-gray-300 bg-gray-100">
+            <PictureOutlined style={{ fontSize: 40 }} />
           </div>
         )}
 
@@ -65,7 +75,7 @@ function PostCard({ post, onSelectPost }: PostCardProps) {
         )}
 
         {/* Carousel badge */}
-        {post.mediaType === 'CAROUSEL_ALBUM' && (
+        {mediaType === 'CAROUSEL_ALBUM' && (
           <div className="absolute top-2 right-2 bg-black/60 text-white text-xs px-2 py-0.5 rounded-full">
             ⊞ Album
           </div>
@@ -96,7 +106,7 @@ function PostCard({ post, onSelectPost }: PostCardProps) {
           </Text>
         ) : (
           <Text type="secondary" className="text-xs italic">
-            No caption
+            No caption available
           </Text>
         )}
 
@@ -106,7 +116,7 @@ function PostCard({ post, onSelectPost }: PostCardProps) {
             <Tooltip title="Likes">
               <span className="flex items-center gap-1 text-xs text-gray-500">
                 <HeartOutlined className="text-pink-500" />
-                <span className="font-medium">{post.likeCount.toLocaleString()}</span>
+                <span className="font-medium">{likeCount.toLocaleString()}</span>
               </span>
             </Tooltip>
             <Tooltip title="Comments">
@@ -115,7 +125,7 @@ function PostCard({ post, onSelectPost }: PostCardProps) {
                 className="flex items-center gap-1 text-xs text-gray-500 hover:text-indigo-600 transition-colors cursor-pointer bg-transparent border-0 p-0"
               >
                 <Badge
-                  count={post.commentsCount}
+                  count={commentsCount}
                   size="small"
                   style={{ backgroundColor: '#6366f1' }}
                 >
@@ -169,19 +179,22 @@ export function PostsGrid({
 }: PostsGridProps) {
   if (isLoading) return <PostsGridSkeleton />;
 
-  if (posts.length === 0) {
+  if (!posts?.length) {
     return (
       <Empty
         image={Empty.PRESENTED_IMAGE_SIMPLE}
         description={
           <span className="text-gray-500 text-sm">
-            No posts found. Posts will appear here once your account has content.
+            No posts found
           </span>
         }
         className="py-16"
       />
     );
   }
+
+  // Debug log
+  console.log("POSTS:", posts);
 
   return (
     <div className="space-y-6">

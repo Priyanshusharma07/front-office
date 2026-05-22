@@ -25,6 +25,7 @@ import { AutomationFormTab } from './components/AutomationFormTab';
 import { WebhookEventsTable } from './components/WebhookEventsTable';
 import { SettingsTab } from './components/SettingsTab';
 import { LoadingState } from './components/LoadingState';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import { useNativePosts } from './hooks/useNativePosts';
 
 
@@ -194,16 +195,18 @@ export function NativeAutomationFlow() {
               }
             />
           )}
-          <PostsGrid
-            posts={posts}
-            isLoading={postsLoading}
-            isFetchingNextPage={isFetchingNextPage}
-            hasNextPage={hasNextPage}
-            onLoadMore={fetchNextPage}
-            onSelectPost={(post) => {
-              antMessage.info(`Post selected: ${post.caption?.slice(0, 40) || 'Post'}`);
-            }}
-          />
+          <ErrorBoundary>
+            <PostsGrid
+              posts={posts}
+              isLoading={postsLoading}
+              isFetchingNextPage={isFetchingNextPage}
+              hasNextPage={hasNextPage}
+              onLoadMore={fetchNextPage}
+              onSelectPost={(post) => {
+                antMessage.info(`Post selected: ${post.caption?.slice(0, 40) || 'Post'}`);
+              }}
+            />
+          </ErrorBoundary>
         </div>
       ),
     },
