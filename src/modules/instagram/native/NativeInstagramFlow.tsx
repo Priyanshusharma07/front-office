@@ -25,6 +25,8 @@ export function NativeInstagramFlow() {
   const [flowState, setFlowState] = useState<ConnectionState>('idle');
   const [showAutomation, setShowAutomation] = useState(false);
   const [callbackHandled, setCallbackHandled] = useState(false);
+  // Persists the accountId from the OAuth callback so the hook can query the API
+  const [accountId, setAccountId] = useState<string | null>(null);
 
   const {
     accountStatus,
@@ -34,25 +36,38 @@ export function NativeInstagramFlow() {
     initiateConnection,
     disconnect,
     isDisconnecting,
-  } = useNativeAccount();
+  } = useNativeAccount({ accountId });
 
   /* ── 1. Handle OAuth callback query params ──────────── */
   useEffect(() => {
     if (callbackHandled) return;
     setCallbackHandled(true);
 
-    const status = searchParams.get('status') as CallbackParams['status'];
-    const errorParam = searchParams.get('error');
-    const errorDesc = searchParams.get('error_description');
+    // Read ALL params BEFORE cleaning the URL so nothing is lost
+    const status    = searchParams.get('status') as CallbackParams['status'];
+    const cbAccountId = searchParams.get('accountId');
+    const errorParam   = searchParams.get('error');
+    const errorDesc    = searchParams.get('error_description');
+    // Backend may also send a human-readable 'message' on error
+    const backendMsg   = searchParams.get('message');
 
-    console.log('[NativeIG] Callback params — status:', status, 'error:', errorParam);
+    console.log('[NativeIG] Callback params —', { status, cbAccountId, errorParam, backendMsg });
 
     if (status === 'success') {
+      if (!cbAccountId) {
+        console.error('[NativeIG] Success callback received but accountId is missing in URL');
+        setFlowState('error');
+        message.error('Instagram authorization succeeded but account ID is missing. Please try again.');
+        return;
+      }
+
       setFlowState('processing');
-      // Clean URL immediately
+      // Persist accountId in state BEFORE cleaning the URL so the hook can use it
+      setAccountId(cbAccountId);
+      // Now it's safe to clean the URL
       router.replace('/instagram/native', { scroll: false });
 
-      // Refetch account data then transition to connected
+      // accountId is now set → hook will auto-fetch; transition when done
       refetch().then(() => {
         setFlowState('connected');
         message.success('Instagram Business account connected!');
@@ -61,11 +76,14 @@ export function NativeInstagramFlow() {
       });
     } else if (status === 'error' || errorParam) {
       setFlowState('error');
-      const humanMsg = errorDesc
-        ? decodeURIComponent(errorDesc)
-        : errorParam
-        ? decodeURIComponent(errorParam)
-        : 'Instagram authorization failed. Please try again.';
+      const humanMsg =
+        backendMsg
+          ? decodeURIComponent(backendMsg)
+          : errorDesc
+          ? decodeURIComponent(errorDesc)
+          : errorParam
+          ? decodeURIComponent(errorParam)
+          : 'Instagram authorization failed. Please try again.';
       message.error(humanMsg);
       // Clean URL after a brief delay
       setTimeout(() => router.replace('/instagram/native', { scroll: false }), 150);
