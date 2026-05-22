@@ -112,3 +112,34 @@ export interface CallbackParams {
 
 /** Token status derived from expiry date */
 export type TokenStatus = 'connected' | 'expiring_soon' | 'expired' | 'disconnected';
+
+/** A single webhook event from GET /instagram/native/webhook/events */
+export interface WebhookEvent {
+  id: string;
+  eventType: string;          // e.g. "comments", "messages", "mentions"
+  commentText?: string;
+  username?: string;
+  mediaId?: string;
+  timestamp: string;
+  processed: boolean;
+  autoReplySent?: boolean;
+  rawPayload?: Record<string, unknown>;
+}
+
+/** Webhook events list response */
+export interface WebhookEventsResponse {
+  events: WebhookEvent[];
+  total?: number;
+}
+
+/**
+ * Flat automation config for POST /instagram/native/automation
+ * (distinct from the per-trigger AutomationTrigger shape)
+ */
+export interface AutomationConfig {
+  accountId: string;
+  keywords: string[];
+  replyType: 'public' | 'private';
+  replyMessage: string;
+  isEnabled: boolean;
+}
