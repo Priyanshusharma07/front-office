@@ -1,6 +1,6 @@
 import { Suspense } from 'react';
 import { App } from 'antd';
-import { NativeInstagramFlow } from '@/modules/instagram/native/NativeInstagramFlow';
+import { NativeAutomationFlow } from '@/modules/instagram/native/NativeAutomationFlow';
 import { LoadingState } from '@/modules/instagram/native/components/LoadingState';
 
 export const dynamic = 'force-dynamic';
@@ -16,7 +16,7 @@ export default function InstagramNativePage() {
     <div className="min-h-[80vh] py-10 px-4">
       <App>
         <Suspense fallback={<LoadingState message="Loading…" />}>
-          <NativeInstagramFlow />
+          <NativeAutomationFlow />
         </Suspense>
       </App>
     </div>

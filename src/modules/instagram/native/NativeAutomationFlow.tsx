@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import {
-  Tabs, Typography, Alert, Button, App, notification,
+  Tabs, Typography, Alert, Button, App, notification, Drawer,
 } from 'antd';
 import {
   PictureOutlined,
@@ -23,6 +23,7 @@ import { AccountStatusCard, AccountStatusCardSkeleton } from './components/Accou
 import { PostsGrid } from './components/PostsGrid';
 import { AutomationFormTab } from './components/AutomationFormTab';
 import { WebhookEventsTable } from './components/WebhookEventsTable';
+import { CommentsTab } from './components/CommentsTab';
 import { SettingsTab } from './components/SettingsTab';
 import { LoadingState } from './components/LoadingState';
 import { ErrorBoundary } from './components/ErrorBoundary';
@@ -45,7 +46,26 @@ export function NativeAutomationFlow() {
   const { socket } = useSocket();
 
   const [activeTab, setActiveTab] = useState<ActiveTab>('posts');
-  const [accountId, setAccountId] = useState<string | null>(() => getPersistedAccountId());
+  const [accountId, setAccountId] = useState<string | null>(null);
+  const [selectedPost, setSelectedPost] = useState<any>(null);
+
+  /* ── accountId: initialised from localStorage & OAuth callback ─────── */
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const status = params.get('status');
+    const cbId = params.get('accountId');
+
+    if (status === 'success' && cbId) {
+      persistAccountId(cbId);
+      setAccountId(cbId);
+      window.history.replaceState({}, '', window.location.pathname);
+    } else {
+      const id = getPersistedAccountId();
+      if (id && !accountId) {
+        setAccountId(id);
+      }
+    }
+  }, []);
 
   /* ── Account status ──────────────────────────────── */
   const {
@@ -202,9 +222,7 @@ export function NativeAutomationFlow() {
               isFetchingNextPage={isFetchingNextPage}
               hasNextPage={hasNextPage}
               onLoadMore={fetchNextPage}
-              onSelectPost={(post) => {
-                antMessage.info(`Post selected: ${post.caption?.slice(0, 40) || 'Post'}`);
-              }}
+              onSelectPost={(post) => setSelectedPost(post)}
             />
           </ErrorBoundary>
         </div>
@@ -329,6 +347,27 @@ export function NativeAutomationFlow() {
           size="large"
         />
       </div>
+
+      {/* ── Post Detail Drawer ── */}
+      <Drawer
+        title="Post Details"
+        placement="right"
+        width={500}
+        onClose={() => setSelectedPost(null)}
+        open={!!selectedPost}
+        destroyOnClose
+      >
+        {selectedPost && (
+          <div className="h-full">
+            <CommentsTab
+              posts={posts}
+              postsLoading={postsLoading}
+              initialPost={selectedPost}
+              onClearInitialPost={() => setSelectedPost(null)}
+            />
+          </div>
+        )}
+      </Drawer>
     </div>
   );
 }
